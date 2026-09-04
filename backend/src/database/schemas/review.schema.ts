@@ -5,19 +5,25 @@ export type ReviewDocument = HydratedDocument<Review>;
 
 @Schema({ timestamps: true })
 export class Review {
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   userId: string;
 
   @Prop({ required: true, index: true, type: MongooseSchema.Types.ObjectId, ref: "Recipe" })
   recipeId: string;
 
-  @Prop({ required: true, min: 1, max: 5 })
+  @Prop({ type: Number, required: true, min: 1, max: 5 })
   rating: number;
 
-  @Prop({ default: "" })
+  @Prop({ type: String, default: "" })
   comment: string;
 
-  @Prop({ default: "Home Cook" })
+  @Prop({ type: String, default: "Just Right" })
+  difficultyFeedback?: string;
+
+  @Prop({ type: Boolean, default: true })
+  wouldCookAgain?: boolean;
+
+  @Prop({ type: String, default: "Home Cook" })
   userName: string;
 }
 

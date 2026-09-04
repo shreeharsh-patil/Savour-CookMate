@@ -125,7 +125,15 @@ export class RecipesService {
     };
   }
 
-  async rateRecipe(recipeId: string, userId: string, rating: number, comment?: string, userName?: string) {
+  async rateRecipe(
+    recipeId: string,
+    userId: string,
+    rating: number,
+    comment?: string,
+    userName?: string,
+    difficultyFeedback?: string,
+    wouldCookAgain?: boolean
+  ) {
     const recipe = await this.recipeModel.findById(recipeId);
     if (!recipe) {
       throw new NotFoundException(`Recipe with id '${recipeId}' not found.`);
@@ -140,6 +148,8 @@ export class RecipesService {
         rating,
         comment: comment || "",
         userName: userName || "Home Cook",
+        difficultyFeedback: difficultyFeedback || "Just Right",
+        wouldCookAgain: wouldCookAgain !== undefined ? wouldCookAgain : true,
       },
       { upsert: true, new: true }
     );
@@ -187,5 +197,26 @@ export class RecipesService {
     });
 
     return { success: true, cookCount: recipe.cookCount };
+  }
+
+  // Protected Admin / Content Quality Methods
+  async updateStatus(id: string, status: "draft" | "review" | "published" | "rejected") {
+    const recipe = await this.recipeModel.findByIdAndUpdate(
+      id,
+      { $set: { status } },
+      { new: true }
+    );
+    if (!recipe) throw new NotFoundException(`Recipe '${id}' not found.`);
+    return recipe;
+  }
+
+  async updateRecipe(id: string, updates: Partial<Recipe>) {
+    const recipe = await this.recipeModel.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true }
+    );
+    if (!recipe) throw new NotFoundException(`Recipe '${id}' not found.`);
+    return recipe;
   }
 }

@@ -5,10 +5,10 @@ export type UserPreferencesDocument = HydratedDocument<UserPreferences>;
 
 @Schema({ timestamps: true })
 export class UserPreferences {
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ type: String, required: true, unique: true, index: true })
   userId: string;
 
-  @Prop({ default: "all" })
+  @Prop({ type: String, default: "all" })
   diet: string;
 
   @Prop({ type: [String], default: [] })
@@ -17,16 +17,16 @@ export class UserPreferences {
   @Prop({ type: [String], default: [] })
   favoriteCuisines: string[];
 
-  @Prop({ default: "beginner" })
+  @Prop({ type: String, default: "beginner" })
   cookingSkill: string;
 
   @Prop({ type: [String], default: ["English"] })
   preferredLanguages: string[];
 
-  @Prop({ default: 45 })
+  @Prop({ type: Number, default: 45 })
   maximumCookingTime: number;
 
-  @Prop({ default: "medium" })
+  @Prop({ type: String, default: "medium" })
   spicePreference: string;
 }
 

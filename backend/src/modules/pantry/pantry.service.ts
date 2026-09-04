@@ -106,21 +106,18 @@ export class PantryService {
 
   async getSmartSections(userId: string) {
     const pantryItems = await this.pantryModel.find({ userId }).lean();
-    const pantryNames = new Set(pantryItems.map((p) => p.normalizedName.toLowerCase()));
+    const pantryItemNames = pantryItems.map((p) => p.name || p.normalizedName);
 
     const recipes = await this.recipeModel.find({ status: "published" }).lean();
 
     const cookWithoutShopping: any[] = [];
     const missingOneIngredient: any[] = [];
     const useTheseSoon: any[] = [];
+    const allMatches: any[] = [];
 
     const now = new Date();
     const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-    const expiringNames = new Set(
-      pantryItems
-        .filter((i) => i.expiryDate && new Date(i.expiryDate) <= threeDaysFromNow)
-        .map((i) => i.normalizedName.toLowerCase())
-    );
+    const expiringItems = pantryItems.filter((i) => i.expiryDate && new Date(i.expiryDate) <= threeDaysFromNow);
 
     for (const recipe of recipes) {
       const required = recipe.ingredients.filter((i) => !i.optional);
@@ -131,18 +128,13 @@ export class PantryService {
       let usesExpiring = false;
 
       for (const req of required) {
-        const reqName = req.normalizedName.toLowerCase();
-        let found = false;
-        for (const pName of pantryNames) {
-          if (pName.includes(reqName) || reqName.includes(pName)) {
-            found = true;
-            break;
-          }
-        }
+        const isMatched = pantryItemNames.some((pName) =>
+          this.ingredientsService.areIngredientsMatching(pName, req.name)
+        );
 
-        if (found) {
+        if (isMatched) {
           matchedCount++;
-          if (expiringNames.has(reqName)) {
+          if (expiringItems.some((exp) => this.ingredientsService.areIngredientsMatching(exp.name, req.name))) {
             usesExpiring = true;
           }
         } else {
@@ -152,43 +144,47 @@ export class PantryService {
 
       const matchPct = Math.round((matchedCount / required.length) * 100);
 
-      // Cook Without Shopping: 100% matched
-      if (missingList.length === 0) {
-        cookWithoutShopping.push({
-          ...recipe,
-          matchPercentage: 100,
-          missingIngredients: [],
-          matchedCount,
-          totalRequired: required.length,
-        });
-      }
-      // Missing 1 Ingredient
-      else if (missingList.length === 1) {
-        missingOneIngredient.push({
-          ...recipe,
-          matchPercentage: matchPct,
-          missingIngredients: missingList,
-          matchedCount,
-          totalRequired: required.length,
-        });
+      const recipeWithMatch = {
+        ...recipe,
+        matchPercentage: matchPct,
+        missingIngredients: missingList,
+        matchedCount,
+        totalRequired: required.length,
+      };
+
+      if (matchPct > 0) {
+        allMatches.push(recipeWithMatch);
       }
 
-      // Use These Soon
+      // Cook Without Shopping: 100% matched
+      if (missingList.length === 0) {
+        cookWithoutShopping.push(recipeWithMatch);
+      }
+      // Missing Only One Ingredient
+      else if (missingList.length === 1) {
+        missingOneIngredient.push(recipeWithMatch);
+      }
+
+      // Use These Ingredients Soon
       if (usesExpiring && matchedCount >= 2) {
-        useTheseSoon.push({
-          ...recipe,
-          matchPercentage: matchPct,
-          missingIngredients: missingList,
-          matchedCount,
-          totalRequired: required.length,
-        });
+        useTheseSoon.push(recipeWithMatch);
       }
     }
 
+    // Best Match: highest match percentage descending
+    const bestMatch = [...allMatches].sort((a, b) => b.matchPercentage - a.matchPercentage);
+
+    // Quickest Match: recipes with high match sorted by cook time
+    const quickestMatch = [...allMatches]
+      .filter((r) => r.matchPercentage >= 50)
+      .sort((a, b) => (a.totalTime || a.cookTime) - (b.totalTime || b.cookTime));
+
     return {
       cookWithoutShopping: cookWithoutShopping.slice(0, 10),
+      useTheseIngredientsSoon: useTheseSoon.slice(0, 10),
       missingOneIngredient: missingOneIngredient.slice(0, 10),
-      useTheseSoon: useTheseSoon.slice(0, 10),
+      bestMatch: bestMatch.slice(0, 10),
+      quickestMatch: quickestMatch.slice(0, 10),
     };
   }
 }

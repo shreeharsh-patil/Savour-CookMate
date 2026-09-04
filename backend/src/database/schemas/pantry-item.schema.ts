@@ -5,28 +5,28 @@ export type PantryItemDocument = HydratedDocument<PantryItem>;
 
 @Schema({ timestamps: true })
 export class PantryItem {
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   userId: string;
 
-  @Prop()
+  @Prop({ type: String })
   ingredientId?: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   normalizedName: string;
 
-  @Prop({ default: "1" })
+  @Prop({ type: String, default: "1" })
   quantity: string;
 
-  @Prop({ default: "unit" })
+  @Prop({ type: String, default: "unit" })
   unit: string;
 
   @Prop({ type: Date })
   expiryDate?: Date;
 
-  @Prop({ default: false, index: true })
+  @Prop({ type: Boolean, default: false, index: true })
   lowStock: boolean;
 }
 

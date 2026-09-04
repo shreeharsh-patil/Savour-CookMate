@@ -6,6 +6,7 @@ import { PantryItem, PantryItemDocument } from "../../database/schemas/pantry-it
 import { UserPreferences, UserPreferencesDocument } from "../../database/schemas/user-preferences.schema";
 import { CookingHistory, CookingHistoryDocument } from "../../database/schemas/cooking-history.schema";
 import { RecommendationEvent, RecommendationEventDocument } from "../../database/schemas/recommendation-event.schema";
+import { IngredientsService } from "../ingredients/ingredients.service";
 
 export interface RecommendationGroupItem {
   recipe: any;
@@ -23,21 +24,27 @@ export class RecommendationsService {
     @InjectModel(PantryItem.name) private pantryModel: Model<PantryItemDocument>,
     @InjectModel(UserPreferences.name) private prefModel: Model<UserPreferencesDocument>,
     @InjectModel(CookingHistory.name) private historyModel: Model<CookingHistoryDocument>,
-    @InjectModel(RecommendationEvent.name) private eventModel: Model<RecommendationEventDocument>
+    @InjectModel(RecommendationEvent.name) private eventModel: Model<RecommendationEventDocument>,
+    private ingredientsService: IngredientsService
   ) {}
 
   async getRecommendations(userId: string) {
     // 1. Fetch user pantry items
     const pantry = await this.pantryModel.find({ userId }).lean();
-    const pantryNormalized = new Set(pantry.map((p) => p.normalizedName.toLowerCase()));
+    const pantryItemNames = pantry.map((p) => p.name || p.normalizedName);
 
     // 2. Fetch user preferences
     const preferences = (await this.prefModel.findOne({ userId }).lean()) || {
       diet: "all",
+      allergies: [],
       favoriteCuisines: [],
       maximumCookingTime: 45,
       cookingSkill: "beginner",
     };
+
+    const userAllergies = (preferences.allergies || []).map((a: string) => a.toLowerCase().trim());
+    const rawDiet = preferences.diet || (Array.isArray((preferences as any).dietaryRestrictions) ? (preferences as any).dietaryRestrictions.join(" ") : "");
+    const userDiet = (rawDiet || "").toLowerCase();
 
     // 3. Fetch user cooking history to compute cuisine affinity
     const recentHistory = await this.historyModel
@@ -53,98 +60,119 @@ export class RecommendationsService {
       }
     }
 
-    // 4. Fetch all active recipes
+    // 4. Fetch all published recipes
     const recipes = await this.recipeModel.find({ status: "published" }).lean();
 
     const scoredItems: RecommendationGroupItem[] = [];
 
     for (const recipe of recipes) {
+      // STRICT SAFETY FILTER 1: Allergies
+      if (userAllergies.length > 0) {
+        const recipeAllergens = (recipe.allergens || []).map((a: string) => a.toLowerCase());
+        const hasDirectAllergen = userAllergies.some((userAllergy) =>
+          recipeAllergens.some((ra) => ra.includes(userAllergy) || userAllergy.includes(ra))
+        );
+        if (hasDirectAllergen) continue; // Never recommend allergen-conflicted recipe
+
+        const hasIngredientAllergen = recipe.ingredients.some((ing) =>
+          userAllergies.some((userAllergy) =>
+            this.ingredientsService.areIngredientsMatching(ing.name, userAllergy)
+          )
+        );
+        if (hasIngredientAllergen) continue;
+      }
+
+      // STRICT SAFETY FILTER 2: Dietary restrictions
+      if (userDiet && userDiet !== "all") {
+        const recipeTags = recipe.dietaryTags?.map((d) => d.toLowerCase()) || [];
+        const isVegUser = userDiet.includes("veg") && !userDiet.includes("non-veg");
+        const isVeganUser = userDiet.includes("vegan");
+
+        if (isVeganUser && !recipeTags.includes("vegan")) continue;
+        if (isVegUser && !recipeTags.includes("vegetarian") && !recipeTags.includes("vegan")) continue;
+      }
+
+      // Calculate ingredient match using canonical aliases
       const required = recipe.ingredients.filter((i) => !i.optional);
       const totalRequired = required.length || 1;
 
       const matched: string[] = [];
       const missing: string[] = [];
 
-      for (const ing of required) {
-        const ingNorm = ing.normalizedName.toLowerCase();
-        let found = false;
-        for (const p of pantryNormalized) {
-          if (p.includes(ingNorm) || ingNorm.includes(p)) {
-            found = true;
-            break;
-          }
-        }
-        if (found) {
-          matched.push(ing.name);
+      for (const req of required) {
+        const isAvailable = pantryItemNames.some((pantryName) =>
+          this.ingredientsService.areIngredientsMatching(pantryName, req.name)
+        );
+
+        if (isAvailable) {
+          matched.push(req.name);
         } else {
-          missing.push(ing.name);
+          missing.push(req.name);
         }
       }
 
-      // Deterministic calculation
-      const ingredientMatchFraction = matched.length / totalRequired;
-      const ingredientMatchPercent = Math.round(ingredientMatchFraction * 100);
+      const matchFraction = matched.length / totalRequired;
+      const matchPercentage = Math.round(matchFraction * 100);
 
-      // Scoring Breakdown:
-      // 1. Ingredient Match: 40%
-      const matchScore = ingredientMatchFraction * 40;
+      // FORMULA WEIGHTS (Prompt Section 5):
+      // Ingredient match: 40%
+      const ingredientScore = matchFraction * 40;
 
-      // 2. User Preferences (Cuisine & Skill): 20%
+      // Diet compatibility: 20%
+      let dietScore = 20;
+      if (userDiet && userDiet !== "all") {
+        const recipeTags = recipe.dietaryTags?.map((d) => d.toLowerCase()) || [];
+        if (!recipeTags.includes(userDiet)) {
+          dietScore = 10;
+        }
+      }
+
+      // User preferences: 15% (cuisine 10%, skill 5%)
       let prefScore = 0;
-      if (preferences.favoriteCuisines?.some((c) => c.toLowerCase() === recipe.cuisine.toLowerCase())) {
-        prefScore += 15;
+      if (preferences.favoriteCuisines?.some((c: string) => c.toLowerCase() === recipe.cuisine.toLowerCase())) {
+        prefScore += 10;
       }
       if (recipe.difficulty?.toLowerCase() === preferences.cookingSkill?.toLowerCase()) {
         prefScore += 5;
       }
 
-      // 3. Cooking Time: 15%
+      // Cooking time: 10%
       let timeScore = 0;
       const maxTime = preferences.maximumCookingTime || 45;
       if (recipe.totalTime <= maxTime) {
-        timeScore = 15;
+        timeScore = 10;
       } else if (recipe.totalTime <= maxTime + 15) {
-        timeScore = 8;
+        timeScore = 5;
       }
 
-      // 4. Diet Compatibility: 10%
-      let dietScore = 10;
-      const userDiet = preferences.diet?.toLowerCase();
-      if (userDiet && userDiet !== "all") {
-        const recipeTags = recipe.dietaryTags?.map((d) => d.toLowerCase()) || [];
-        if (!recipeTags.includes(userDiet)) {
-          dietScore = 0;
-        }
-      }
-
-      // 5. Cooking History: 10%
+      // Previous cooking behavior: 10%
       let historyScore = 0;
       if (cookedCuisineCounts[recipe.cuisine]) {
         historyScore = Math.min(10, cookedCuisineCounts[recipe.cuisine] * 3);
       }
 
-      // 6. Popularity: 5%
+      // Real popularity: 5%
       const popularityScore = Math.min(5, (recipe.cookCount || 0) * 0.1);
 
       const overallScore = Math.round(
-        matchScore + prefScore + timeScore + dietScore + historyScore + popularityScore
+        ingredientScore + dietScore + prefScore + timeScore + historyScore + popularityScore
       );
 
-      // Build human explanation
+      // Natural, helpful human explanation
       let explanation = "";
       if (missing.length === 0) {
-        explanation = "You have all required ingredients in your kitchen.";
+        explanation = `Great match — you already have all ${totalRequired} required ingredients.`;
       } else if (missing.length === 1) {
-        explanation = `You have ${matched.length} of ${totalRequired} ingredients. Only missing ${missing[0]}.`;
-      } else if (ingredientMatchPercent >= 60) {
-        explanation = `Strong match using your pantry staples. Fits your ${recipe.cuisine} preference.`;
+        explanation = `Great match — you already have ${matched.length} of the ${totalRequired} required ingredients. Only missing ${missing[0]}.`;
+      } else if (matchPercentage >= 60) {
+        explanation = `Great match — you already have ${matched.length} of the ${totalRequired} required ingredients.`;
       } else {
         explanation = `Matches your preference for ${recipe.totalTime}-min ${recipe.cuisine} dishes.`;
       }
 
       scoredItems.push({
         recipe,
-        matchPercentage: ingredientMatchPercent,
+        matchPercentage,
         matchedIngredients: matched,
         missingIngredients: missing,
         overallScore,
@@ -155,7 +183,7 @@ export class RecommendationsService {
     // Sort by overallScore descending
     scoredItems.sort((a, b) => b.overallScore - a.overallScore);
 
-    // Grouping according to prompt specifications
+    // Grouping
     const makeNow = scoredItems.filter((i) => i.missingIngredients.length === 0);
     const almostThere = scoredItems.filter(
       (i) => i.missingIngredients.length >= 1 && i.missingIngredients.length <= 2
@@ -168,11 +196,11 @@ export class RecommendationsService {
     );
 
     return {
-      makeNow: makeNow.slice(0, 8),
-      almostThere: almostThere.slice(0, 8),
-      goodMatch: goodMatch.slice(0, 8),
-      worthShoppingFor: worthShoppingFor.slice(0, 8),
-      topRecommendations: scoredItems.slice(0, 10),
+      makeNow: makeNow.slice(0, 10),
+      almostThere: almostThere.slice(0, 10),
+      goodMatch: goodMatch.slice(0, 10),
+      worthShoppingFor: worthShoppingFor.slice(0, 10),
+      topRecommendations: scoredItems.slice(0, 12),
     };
   }
 

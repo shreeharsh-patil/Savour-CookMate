@@ -5,37 +5,37 @@ export type RecipeDocument = HydratedDocument<Recipe>;
 
 @Schema({ _id: false })
 export class RecipeIngredient {
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   normalizedName: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   quantity: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   unit: string;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   optional: boolean;
 
-  @Prop({ default: "pantry" })
+  @Prop({ type: String, default: "pantry" })
   category: string;
 }
 
 @Schema({ _id: false })
 export class RecipeStep {
-  @Prop({ required: true })
+  @Prop({ type: Number, required: true })
   stepNumber: number;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   instruction: string;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   timerMinutes: number;
 
-  @Prop()
+  @Prop({ type: String })
   chefTip?: string;
 
   @Prop({ type: [String], default: [] })
@@ -44,46 +44,51 @@ export class RecipeStep {
 
 @Schema({ _id: false })
 export class RecipeNutrition {
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   calories: number;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   protein: number;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   carbs: number;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   fat: number;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   fiber: number;
 }
 
 @Schema({ _id: false })
 export class RecipeSubstitution {
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   ingredient: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   substitute: string;
 
-  @Prop({ default: "" })
+  @Prop({ type: String, default: "" })
   note: string;
 }
 
+export const RecipeIngredientSchema = SchemaFactory.createForClass(RecipeIngredient);
+export const RecipeStepSchema = SchemaFactory.createForClass(RecipeStep);
+export const RecipeNutritionSchema = SchemaFactory.createForClass(RecipeNutrition);
+export const RecipeSubstitutionSchema = SchemaFactory.createForClass(RecipeSubstitution);
+
 @Schema({ timestamps: true })
 export class Recipe {
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ type: String, required: true, unique: true, index: true })
   slug: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   name: string;
 
-  @Prop({ default: "" })
+  @Prop({ type: String, default: "" })
   description: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   cuisine: string;
 
   @Prop({ type: [String], default: [], index: true })
@@ -92,28 +97,28 @@ export class Recipe {
   @Prop({ type: [String], default: [], index: true })
   dietaryTags: string[];
 
-  @Prop({ default: "Medium" })
+  @Prop({ type: String, default: "Medium" })
   difficulty: string;
 
-  @Prop({ default: 15 })
+  @Prop({ type: Number, default: 15 })
   prepTime: number;
 
-  @Prop({ default: 25 })
+  @Prop({ type: Number, default: 25 })
   cookTime: number;
 
-  @Prop({ default: 40, index: true })
+  @Prop({ type: Number, default: 40, index: true })
   totalTime: number;
 
-  @Prop({ default: 2 })
+  @Prop({ type: Number, default: 2 })
   servings: number;
 
-  @Prop({ type: [RecipeIngredient], default: [] })
+  @Prop({ type: [RecipeIngredientSchema], default: [] })
   ingredients: RecipeIngredient[];
 
-  @Prop({ type: [RecipeStep], default: [] })
+  @Prop({ type: [RecipeStepSchema], default: [] })
   steps: RecipeStep[];
 
-  @Prop({ type: RecipeNutrition, default: () => ({ calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }) })
+  @Prop({ type: RecipeNutritionSchema, default: () => ({ calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }) })
   nutrition: RecipeNutrition;
 
   @Prop({ type: [String], default: [] })
@@ -122,13 +127,19 @@ export class Recipe {
   @Prop({ type: [String], default: [] })
   equipment: string[];
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   imageUrl: string;
 
-  @Prop()
+  @Prop({ type: String, default: "" })
+  thumbnailUrl: string;
+
+  @Prop({ type: String, default: "curated" })
+  imageSource: string;
+
+  @Prop({ type: String })
   youtubeSearchQuery?: string;
 
-  @Prop({ type: [RecipeSubstitution], default: [] })
+  @Prop({ type: [RecipeSubstitutionSchema], default: [] })
   substitutions: RecipeSubstitution[];
 
   @Prop({ type: [String], default: [] })
@@ -145,12 +156,18 @@ export class Recipe {
   cookCount: number;
 
   @Prop({ type: [String], default: [], index: true })
+  tags: string[];
+
+  @Prop({ type: [String], default: [], index: true })
   searchKeywords: string[];
 
-  @Prop({ default: "published", index: true })
+  @Prop({ type: String, default: "curated" })
+  source: string;
+
+  @Prop({ type: String, default: "published", index: true })
   status: string;
 
-  @Prop({ default: 1 })
+  @Prop({ type: Number, default: 1 })
   version: number;
 }
 

@@ -20,15 +20,42 @@ export class ShoppingService {
     return items;
   }
 
-  async addItem(userId: string, name: string, quantity = "1", unit = "unit", category = "General", recipeId?: string) {
+  private mapToStandardCategory(cat: string): string {
+    const lower = (cat || "").toLowerCase();
+    if (/produce|veg|herb|greens/i.test(lower)) return "Vegetables";
+    if (/meat|poultry|chicken|fish|seafood|protein|egg|lentil|dal/i.test(lower)) return "Protein";
+    if (/dairy|milk|cheese|paneer|curd|butter|yogurt|cream/i.test(lower)) return "Dairy";
+    if (/spice|masala|\boil\b|salt|chilli|herb/i.test(lower)) return "Spices";
+    if (/grain|rice|pasta|flour|bread|cereal/i.test(lower)) return "Grains";
+    return "Other";
+  }
+
+  async addItem(userId: string, name: string, quantity = "1", unit = "unit", category = "Other", recipeId?: string) {
     const normalizedName = this.ingredientsService.normalizeIngredientName(name);
+    const standardCategory = this.mapToStandardCategory(category);
+
+    // Prevent duplicate items
+    const existing = await this.shoppingModel.findOne({ userId, normalizedName });
+    if (existing) {
+      // If item already exists, update quantity
+      const existingNum = parseFloat(existing.quantity);
+      const incomingNum = parseFloat(quantity);
+      if (!isNaN(existingNum) && !isNaN(incomingNum)) {
+        existing.quantity = (existingNum + incomingNum).toString();
+      }
+      existing.isChecked = false; // Re-activate
+      if (recipeId && !existing.recipeId) existing.recipeId = recipeId;
+      await existing.save();
+      return existing;
+    }
+
     return this.shoppingModel.create({
       userId,
       name: name.trim(),
       normalizedName,
       quantity,
       unit,
-      category,
+      category: standardCategory,
       recipeId,
       isChecked: false,
     });
@@ -61,36 +88,32 @@ export class ShoppingService {
     }
 
     const pantryItems = await this.pantryModel.find({ userId }).lean();
-    const pantryNormalized = new Set(pantryItems.map((p) => p.normalizedName.toLowerCase()));
+    const pantryItemNames = pantryItems.map((p) => p.name || p.normalizedName);
 
     const missingIngredients = recipe.ingredients.filter((ing) => {
       if (ing.optional) return false;
-      const ingNorm = ing.normalizedName.toLowerCase();
-      for (const p of pantryNormalized) {
-        if (p.includes(ingNorm) || ingNorm.includes(p)) return false;
-      }
-      return true;
+      return !pantryItemNames.some((pName) =>
+        this.ingredientsService.areIngredientsMatching(pName, ing.name)
+      );
     });
 
-    const added: any[] = [];
+    const addedOrUpdated: any[] = [];
     for (const missing of missingIngredients) {
-      const item = await this.shoppingModel.create({
+      const item = await this.addItem(
         userId,
-        name: missing.name,
-        normalizedName: missing.normalizedName,
-        quantity: missing.quantity,
-        unit: missing.unit,
-        category: missing.category || "Produce",
-        recipeId: recipe._id.toString(),
-        isChecked: false,
-      });
-      added.push(item);
+        missing.name,
+        missing.quantity,
+        missing.unit,
+        this.mapToStandardCategory(missing.category || "Produce"),
+        recipe._id.toString()
+      );
+      addedOrUpdated.push(item);
     }
 
     return {
       success: true,
-      addedCount: added.length,
-      items: added,
+      addedCount: addedOrUpdated.length,
+      items: addedOrUpdated,
     };
   }
 

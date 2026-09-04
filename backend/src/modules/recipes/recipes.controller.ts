@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Query,
   Body,
@@ -52,14 +53,22 @@ export class RecipesController {
   async rateRecipe(
     @Param("id") id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { rating: number; comment?: string }
+    @Body()
+    body: {
+      rating: number;
+      comment?: string;
+      difficultyFeedback?: string;
+      wouldCookAgain?: boolean;
+    }
   ) {
     return this.recipesService.rateRecipe(
       id,
       user.userId,
       body.rating,
       body.comment,
-      user.displayName
+      user.displayName,
+      body.difficultyFeedback,
+      body.wouldCookAgain
     );
   }
 
@@ -75,5 +84,22 @@ export class RecipesController {
       body.durationMinutes,
       body.notes
     );
+  }
+
+  // Admin / Content Quality Workflows
+  @Patch(":id/status")
+  async updateRecipeStatus(
+    @Param("id") id: string,
+    @Body() body: { status: "draft" | "review" | "published" | "rejected" }
+  ) {
+    return this.recipesService.updateStatus(id, body.status);
+  }
+
+  @Patch(":id")
+  async updateRecipeDetails(
+    @Param("id") id: string,
+    @Body() updates: any
+  ) {
+    return this.recipesService.updateRecipe(id, updates);
   }
 }

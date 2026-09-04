@@ -5,28 +5,28 @@ export type ShoppingItemDocument = HydratedDocument<ShoppingItem>;
 
 @Schema({ timestamps: true })
 export class ShoppingItem {
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   userId: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ required: true, index: true })
+  @Prop({ type: String, required: true, index: true })
   normalizedName: string;
 
-  @Prop({ default: "1" })
+  @Prop({ type: String, default: "1" })
   quantity: string;
 
-  @Prop({ default: "unit" })
+  @Prop({ type: String, default: "unit" })
   unit: string;
 
-  @Prop({ default: false, index: true })
+  @Prop({ type: Boolean, default: false, index: true })
   isChecked: boolean;
 
-  @Prop()
+  @Prop({ type: String })
   recipeId?: string;
 
-  @Prop({ default: "General" })
+  @Prop({ type: String, default: "General" })
   category: string;
 }
 
