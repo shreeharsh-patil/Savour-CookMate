@@ -102,7 +102,7 @@ export const youtubeService = {
       return Array.isArray(videos) ? videos : [];
     } catch (error: any) {
       if (error?.name === "AbortError" || signal?.aborted) {
-        return [];
+        throw error;
       }
       console.warn("YouTube search error:", error);
       return [];

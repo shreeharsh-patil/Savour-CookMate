@@ -20,6 +20,7 @@ import {
 import { api } from "../services/api";
 import { mapMongoRecipeToClient, recipeService } from "../services/recipeService";
 import { setStoredToken, clearStoredToken, getStoredToken } from "../services/apiClient";
+import { firebaseSignIn, firebaseSignUp, firebaseSignOut } from "../services/firebaseClient";
 
 interface ToastState {
   message: string;
@@ -85,6 +86,7 @@ interface AppState {
   setNaturalLanguagePantryInput: (val: string) => void;
   loadPantryItems: () => Promise<void>;
   addPantryItem: (name: string, category?: PantryCategory, quantity?: string, unit?: string, expiryDate?: string) => Promise<void>;
+  restorePantryItem: (item: PantryItem) => Promise<void>;
   removePantryItem: (id: string) => Promise<void>;
   clearAllPantryItems: () => Promise<void>;
   findDishesICanMake: (prompt?: string) => Promise<void>;
@@ -119,18 +121,9 @@ interface AppState {
     recipeId?: string
   ) => Promise<void>;
 
-  // Active Cooking Sheet (Local & Distraction-Free)
-  isCookingMode: boolean;
+  // Recipe-detail modal
   selectedRecipe: Recipe | null;
-  cookingStepIndex: number;
-  cookingTimerSeconds: number;
-  isTimerRunning: boolean;
   setSelectedRecipe: (recipe: Recipe | null) => void;
-  startCookingMode: (recipe: Recipe) => void;
-  exitCookingMode: () => void;
-  setCookingStepIndex: (idx: number) => void;
-  setCookingTimerSeconds: (seconds: number | ((prev: number) => number)) => void;
-  setIsTimerRunning: (running: boolean) => void;
 
   // Modals & Feedback
   isShoppingListOpen: boolean;
@@ -157,8 +150,20 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   spiceTolerance: "Medium",
 };
 
-const COOKING_STORAGE_KEY = "@savour_active_cooking_session";
-const RECENTLY_VIEWED_KEY = "@savour_recently_viewed";
+const RECENTLY_VIEWED_KEY = "@yummy_tummy_recently_viewed";
+const LEGACY_RECENTLY_VIEWED_KEY = "@savour_recently_viewed";
+
+async function readWithMigration(key: string, legacyKey: string): Promise<string | null> {
+  const current = await AsyncStorage.getItem(key);
+  if (current !== null) return current;
+
+  const legacy = await AsyncStorage.getItem(legacyKey);
+  if (legacy === null) return null;
+
+  await AsyncStorage.setItem(key, legacy);
+  await AsyncStorage.removeItem(legacyKey);
+  return legacy;
+}
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Auth & Profile
@@ -169,21 +174,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadAuthUser: async () => {
     try {
-      // 1. Restore local cooking session if present
-      const savedSession = await AsyncStorage.getItem(COOKING_STORAGE_KEY);
-      if (savedSession) {
-        const parsed = JSON.parse(savedSession);
-        set({
-          isCookingMode: parsed.isCookingMode,
-          selectedRecipe: parsed.selectedRecipe,
-          cookingStepIndex: parsed.cookingStepIndex || 0,
-          cookingTimerSeconds: parsed.cookingTimerSeconds || 0,
-          isTimerRunning: false,
-        });
-      }
-
-      // 2. Restore recently viewed recipes
-      const savedRecent = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
+      // Restore recently viewed recipes.
+      const savedRecent = await readWithMigration(RECENTLY_VIEWED_KEY, LEGACY_RECENTLY_VIEWED_KEY);
       if (savedRecent) {
         try {
           const parsed = JSON.parse(savedRecent);
@@ -193,7 +185,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch {}
       }
 
-      // 3. Fetch authenticated profile from MongoDB
+      // Fetch authenticated profile from MongoDB.
       const token = await getStoredToken();
       if (token) {
         const res = await api.auth.getMe();
@@ -236,68 +228,113 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   signInWithGoogle: async () => {
-    // Simulated Google OAuth token flow
-    const mockToken = `google_oauth_${Date.now()}`;
-    await setStoredToken(mockToken);
-    const res = await api.auth.verifySession();
-    const user: AuthUser = {
-      id: res?.user?.firebaseUid || "usr_google",
-      name: res?.user?.displayName || "Google Chef",
-      email: res?.user?.email || "chef@google.com",
-      isGuest: false,
-    };
-    set({ currentUser: user, isAuthModalOpen: false });
-    get().setToast({ message: `Welcome back, ${user.name}!`, type: "success" });
-    return { user };
+    try {
+      const res = await api.auth.verifySession();
+      if (res?.user) {
+        const user: AuthUser = {
+          id: res.user.firebaseUid,
+          name: res.user.displayName || "Google Chef",
+          email: res.user.email || "",
+          isGuest: false,
+        };
+        set({ currentUser: user, isAuthModalOpen: false });
+        get().setToast({ message: `Welcome back, ${user.name}!`, type: "success" });
+        return { user };
+      }
+      return { error: "Google Sign-In configuration required on this device." };
+    } catch (err: any) {
+      return { error: err.message || "Google Sign-In failed." };
+    }
   },
 
-  signInWithEmail: async (email: string) => {
-    const token = `usr_email_${Date.now()}`;
-    await setStoredToken(token);
-    const res = await api.auth.verifySession();
-    const user: AuthUser = {
-      id: res?.user?.firebaseUid || token,
-      name: res?.user?.displayName || email.split("@")[0],
-      email,
-      isGuest: false,
-    };
-    set({ currentUser: user, isAuthModalOpen: false });
-    get().setToast({ message: `Welcome back, ${user.name}!`, type: "success" });
-    return { user };
+  signInWithEmail: async (email: string, pass: string) => {
+    try {
+      const { user: fbUser } = await firebaseSignIn(email, pass);
+      const res = await api.auth.verifySession();
+      const user: AuthUser = {
+        id: res?.user?.firebaseUid || fbUser.uid,
+        name: res?.user?.displayName || fbUser.displayName || email.split("@")[0],
+        email: fbUser.email || email,
+        isGuest: false,
+      };
+      set({ currentUser: user, isAuthModalOpen: false });
+      get().setToast({ message: `Welcome back, ${user.name}!`, type: "success" });
+      return { user };
+    } catch (err: any) {
+      let msg = "Sign in failed.";
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
+        msg = "Invalid email or password.";
+      } else if (err.code === "auth/user-not-found") {
+        msg = "No account found with this email.";
+      } else if (err.code === "auth/invalid-email") {
+        msg = "Please enter a valid email address.";
+      } else if (err.message) {
+        msg = err.message;
+      }
+      return { error: msg };
+    }
   },
 
-  signUpWithEmail: async (email: string, _: string, name: string) => {
-    const token = `usr_email_${Date.now()}`;
-    await setStoredToken(token);
-    const res = await api.auth.verifySession();
-    const user: AuthUser = {
-      id: res?.user?.firebaseUid || token,
-      name: name || email.split("@")[0],
-      email,
-      isGuest: false,
-    };
-    set({ currentUser: user, isAuthModalOpen: false });
-    get().setToast({ message: `Account created for ${user.name}!`, type: "success" });
-    return { user };
+  signUpWithEmail: async (email: string, pass: string, name: string) => {
+    try {
+      const { user: fbUser } = await firebaseSignUp(email, pass, name);
+      const res = await api.auth.verifySession();
+      const user: AuthUser = {
+        id: res?.user?.firebaseUid || fbUser.uid,
+        name: name || res?.user?.displayName || fbUser.displayName || email.split("@")[0],
+        email: fbUser.email || email,
+        isGuest: false,
+      };
+      set({ currentUser: user, isAuthModalOpen: false });
+      get().setToast({ message: `Account created for ${user.name}!`, type: "success" });
+      return { user };
+    } catch (err: any) {
+      let msg = "Sign up failed.";
+      if (err.code === "auth/email-already-in-use") {
+        msg = "An account with this email already exists.";
+      } else if (err.code === "auth/weak-password") {
+        msg = "Password should be at least 6 characters.";
+      } else if (err.code === "auth/invalid-email") {
+        msg = "Please enter a valid email address.";
+      } else if (err.message) {
+        msg = err.message;
+      }
+      return { error: msg };
+    }
   },
 
   signInAsGuest: async () => {
-    const res = await api.auth.createGuestSession();
-    if (res?.token) {
-      await setStoredToken(res.token);
+    try {
+      const res = await api.auth.createGuestSession();
+      if (res?.token) {
+        await setStoredToken(res.token);
+      }
+      // The guest id is the stable server-side identity (firebaseUid) for this
+      // session - NOT the bearer token string (they happen to look similar today).
+      const guestId =
+        res?.user?.firebaseUid || res?.user?.id || res?.token || "guest_anonymous";
+      const guest: AuthUser = {
+        id: guestId,
+        name: "Guest Chef",
+        email: "",
+        isGuest: true,
+      };
+      set({ currentUser: guest, isAuthModalOpen: false });
+      return guest;
+    } catch {
+      const fallbackGuest: AuthUser = {
+        id: "guest_anonymous",
+        name: "Guest Chef",
+        email: "",
+        isGuest: true,
+      };
+      set({ currentUser: fallbackGuest, isAuthModalOpen: false });
+      return fallbackGuest;
     }
-    const guest: AuthUser = {
-      id: res?.token || "guest_default",
-      name: "Guest Chef",
-      email: "",
-      isGuest: true,
-    };
-    set({ currentUser: guest, isAuthModalOpen: false });
-    return guest;
   },
 
   signOut: async () => {
-    await clearStoredToken();
+    await firebaseSignOut();
     set({ currentUser: null, userProfile: null });
     get().setToast({ message: "Signed out", type: "info" });
     await get().signInAsGuest();
@@ -508,7 +545,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const items: PantryItem[] = (res.allItems || []).map((p) => ({
         id: p._id,
         name: p.name,
-        category: "Produce",
+        category: (p.category as PantryCategory) || "Other",
         quantity: p.quantity,
         unit: p.unit,
         expiryDate: p.expiryDate,
@@ -522,9 +559,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   addPantryItem: async (name: string, category: PantryCategory = "Produce", quantity = "1", unit = "unit", expiryDate?: string) => {
     try {
-      const created = await api.pantry.addItem({ name, quantity, unit, expiryDate });
+      const created = await api.pantry.addItem({ name, quantity, unit, expiryDate, category });
       const item: PantryItem = {
-        id: created._id || Date.now().toString(),
+        id: created?._id || Date.now().toString(),
         name,
         category,
         quantity,
@@ -534,6 +571,34 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
       set((state) => ({ pantryItems: [item, ...state.pantryItems.filter((i) => i.name.toLowerCase() !== name.toLowerCase())] }));
       get().setToast({ message: `Added ${name} to pantry`, type: "success" });
+    } catch {
+      // offline
+    }
+  },
+
+  restorePantryItem: async (item: PantryItem) => {
+    // Optimistically restore full item preserving all fields
+    set((state) => ({
+      pantryItems: [item, ...state.pantryItems.filter((i) => i.id !== item.id)],
+    }));
+    try {
+      const created = await api.pantry.addItem({
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        expiryDate: item.expiryDate,
+        category: item.category,
+      });
+      // The re-created server document gets a NEW _id (the old row was deleted),
+      // so reconcile the local entry to keep later remove/update calls valid.
+      if (created?._id && created._id !== item.id) {
+        set((state) => ({
+          pantryItems: state.pantryItems.map((i) =>
+            i.id === item.id ? { ...i, id: created._id } : i
+          ),
+        }));
+      }
+      get().setToast({ message: `Restored ${item.name}`, type: "success" });
     } catch {
       // offline
     }
@@ -645,7 +710,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadRecentlyViewed: async () => {
     try {
-      const stored = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
+      const stored = await readWithMigration(RECENTLY_VIEWED_KEY, LEGACY_RECENTLY_VIEWED_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -765,16 +830,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().setToast({ message: `Added ${res.addedCount} items to shopping list!`, type: "success" });
       }
     } catch {
-      get().setToast({ message: "Added items to shopping list", type: "success" });
+      get().setToast({
+        message: "Couldn't update the shopping list. Please try again.",
+        type: "error",
+      });
     }
   },
 
-  // Active Cooking Sheet (Cached Locally)
-  isCookingMode: false,
   selectedRecipe: null,
-  cookingStepIndex: 0,
-  cookingTimerSeconds: 0,
-  isTimerRunning: false,
 
   setSelectedRecipe: (recipe) => {
     set({ selectedRecipe: recipe });
@@ -782,50 +845,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       get().addRecentlyViewed(recipe);
     }
   },
-
-  startCookingMode: (recipe: Recipe) => {
-    const session = {
-      isCookingMode: true,
-      selectedRecipe: recipe,
-      cookingStepIndex: 0,
-      cookingTimerSeconds: 0,
-      isTimerRunning: false,
-    };
-    set(session);
-    AsyncStorage.setItem(COOKING_STORAGE_KEY, JSON.stringify(session)).catch(() => {});
-  },
-
-  exitCookingMode: () => {
-    set({
-      isCookingMode: false,
-      selectedRecipe: null,
-      cookingStepIndex: 0,
-      cookingTimerSeconds: 0,
-      isTimerRunning: false,
-    });
-    AsyncStorage.removeItem(COOKING_STORAGE_KEY).catch(() => {});
-  },
-
-  setCookingStepIndex: (idx: number) => {
-    set({ cookingStepIndex: idx });
-    const state = get();
-    AsyncStorage.setItem(
-      COOKING_STORAGE_KEY,
-      JSON.stringify({
-        isCookingMode: state.isCookingMode,
-        selectedRecipe: state.selectedRecipe,
-        cookingStepIndex: idx,
-        cookingTimerSeconds: state.cookingTimerSeconds,
-      })
-    ).catch(() => {});
-  },
-
-  setCookingTimerSeconds: (seconds: number | ((prev: number) => number)) =>
-    set((state) => ({
-      cookingTimerSeconds:
-        typeof seconds === "function" ? seconds(state.cookingTimerSeconds) : seconds,
-    })),
-  setIsTimerRunning: (running: boolean) => set({ isTimerRunning: running }),
 
   // Modals & Feedback
   isShoppingListOpen: false,

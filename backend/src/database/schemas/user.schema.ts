@@ -19,6 +19,9 @@ export class User {
 
   @Prop({ type: Boolean, default: false })
   isGuest: boolean;
+
+  @Prop({ type: String, enum: ["user", "admin"], default: "user", index: true })
+  role: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

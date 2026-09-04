@@ -114,7 +114,7 @@ describe("MealDbRecipeProvider - Meal Normalization & Step Extraction", () => {
     assert.equal(normalized.name, "Simple Toast");
     assert.equal(normalized.ingredients.length, 0);
     assert.equal(normalized.instructions.length, 0);
-    assert.ok(normalized.cookTime > 0);
-    assert.ok(normalized.prepTime > 0);
+    assert.equal(normalized.cookTime, undefined);
+    assert.equal(normalized.prepTime, undefined);
   });
 });

@@ -2,44 +2,79 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-// Dynamically determine backend URL for Android Emulator, Physical Device, and iOS/Web
+const TOKEN_KEY = "@yummy_tummy_auth_token";
+const LEGACY_TOKEN_KEY = "@savour_cookmate_auth_token";
+const GUEST_ID_KEY = "@yummy_tummy_guest_id";
+const LEGACY_GUEST_ID_KEY = "@savour_cookmate_guest_id";
+
+async function readWithMigration(key: string, legacyKey: string): Promise<string | null> {
+  const current = await AsyncStorage.getItem(key);
+  if (current !== null) return current;
+
+  const legacy = await AsyncStorage.getItem(legacyKey);
+  if (legacy === null) return null;
+
+  await AsyncStorage.setItem(key, legacy);
+  await AsyncStorage.removeItem(legacyKey);
+  return legacy;
+}
+
+/**
+ * Deterministically resolves backend URL based on platform and environment.
+ */
 export const getBaseUrl = (): string => {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const isProduction = process.env.NODE_ENV === "production";
 
-  // If a production or custom non-localhost URL is provided, use it directly
+  // Production MUST use explicitly configured EXPO_PUBLIC_API_URL
+  if (isProduction) {
+    if (!envUrl) {
+      throw new Error(
+        "Production configuration error: EXPO_PUBLIC_API_URL must be explicitly configured."
+      );
+    }
+    return envUrl;
+  }
+
+  // If a custom non-localhost URL is provided in env, use it directly
   if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
     return envUrl;
   }
 
-  // Extract host IP from Expo Metro bundler connection if running via Expo Go
+  // Extract Metro host IP if available
   const hostUri =
     Constants.expoConfig?.hostUri ||
     (Constants as any).manifest?.debuggerHost ||
     (Constants as any).manifest2?.extra?.expoClient?.hostUri;
 
   const hostIp = hostUri ? hostUri.split(":")[0] : null;
+  const hasValidLanIp =
+    Boolean(hostIp && hostIp !== "localhost" && hostIp !== "127.0.0.1");
 
   if (Platform.OS === "android") {
-    // 1. If Metro reports a LAN IP (e.g. 10.x.x.x or 192.168.x.x), use it for physical device & emulator
-    if (hostIp && hostIp !== "localhost" && hostIp !== "127.0.0.1") {
+    // Android emulator cannot reach host via 'localhost' (points to emulator itself).
+    // Physical device requires the Metro LAN host IP.
+    // Emulator works with 10.0.2.2 or LAN host IP.
+    if (hasValidLanIp) {
       return `http://${hostIp}:3000`;
     }
-    // 2. Android emulator virtual gateway to host machine loopback
     return "http://10.0.2.2:3000";
   }
 
-  if (Platform.OS === "ios" && hostIp && hostIp !== "localhost" && hostIp !== "127.0.0.1") {
-    return `http://${hostIp}:3000`;
+  if (Platform.OS === "ios") {
+    if (hasValidLanIp) {
+      return `http://${hostIp}:3000`;
+    }
+    return "http://localhost:3000";
   }
 
+  // Web and fallback
   return envUrl || "http://localhost:3000";
 };
 
-const TOKEN_KEY = "@savour_cookmate_auth_token";
-
 export async function getStoredToken(): Promise<string | null> {
   try {
-    return await AsyncStorage.getItem(TOKEN_KEY);
+    return await readWithMigration(TOKEN_KEY, LEGACY_TOKEN_KEY);
   } catch {
     return null;
   }
@@ -55,91 +90,170 @@ export async function setStoredToken(token: string): Promise<void> {
 
 export async function clearStoredToken(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.multiRemove([TOKEN_KEY, LEGACY_TOKEN_KEY]);
   } catch (err) {
     console.warn("Error clearing auth token:", err);
   }
 }
 
-interface RequestOptions extends RequestInit {
+/**
+ * Retrieves or generates a unique persistent guest session identifier
+ */
+export async function getPersistentGuestId(): Promise<string> {
+  try {
+    const existing = await readWithMigration(GUEST_ID_KEY, LEGACY_GUEST_ID_KEY);
+    if (existing && existing.startsWith("guest_")) {
+      return existing;
+    }
+    const newGuestId = `guest_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
+    await AsyncStorage.setItem(GUEST_ID_KEY, newGuestId);
+    return newGuestId;
+  } catch {
+    return `guest_${Date.now().toString(36)}`;
+  }
+}
+
+export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
 }
 
-export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+/**
+ * Reusable fetch with AbortController timeout guaranteeing no hanging requests.
+ */
+export async function fetchWithTimeout(
+  url: string,
+  options: RequestOptions = {}
+): Promise<Response> {
+  const { timeoutMs = 12000, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Link external signal if supplied
+  if (fetchOptions.signal) {
+    fetchOptions.signal.addEventListener("abort", () => controller.abort(), {
+      once: true,
+    });
+  }
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function isGenuineNetworkError(err: any): boolean {
+  if (!err) return false;
+  if (err.name === "AbortError") return true;
+  const msg = (err.message || "").toLowerCase();
+  return (
+    msg.includes("failed to connect") ||
+    msg.includes("network request failed") ||
+    msg.includes("connection refused") ||
+    msg.includes("econnrefused") ||
+    msg.includes("network unreachable") ||
+    msg.includes("timed out") ||
+    msg.includes("fetch failed")
+  );
+}
+
+export async function apiClient<T>(
+  endpoint: string,
+  options: RequestOptions = {}
+): Promise<T> {
   const { timeoutMs = 12000, ...fetchOptions } = options;
   const baseUrl = getBaseUrl();
   const url = endpoint.startsWith("http") ? endpoint : `${baseUrl}${endpoint}`;
 
   const token = await getStoredToken();
+  const guestId = !token ? await getPersistentGuestId() : null;
+
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...(options.headers as Record<string, string>),
   };
 
-  // A JSON content type on a body-less GET request is rejected by some
-  // fetch implementations and servers.
   if (fetchOptions.body != null && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
-  } else {
-    // Fallback anonymous guest token for unauthenticated browsing
-    headers["Authorization"] = "Bearer guest_default";
+  } else if (guestId) {
+    headers["Authorization"] = `Bearer ${guestId}`;
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
 
   try {
-    const response = await fetch(url, {
+    response = await fetchWithTimeout(url, {
       ...fetchOptions,
       headers,
-      signal: controller.signal,
+      timeoutMs,
     });
+  } catch (primaryErr: any) {
+    // Only attempt development fallback for GENUINE transport network errors
+    const isDev = process.env.NODE_ENV !== "production";
+    const canAttemptFallback =
+      isDev &&
+      !endpoint.startsWith("http") &&
+      Platform.OS === "android" &&
+      isGenuineNetworkError(primaryErr);
 
-    clearTimeout(timeoutId);
+    if (canAttemptFallback) {
+      // If primary was LAN IP, fallback to 10.0.2.2.
+      // If primary was 10.0.2.2, check if hostIp exists.
+      // NEVER use localhost on Android!
+      const hostUri = Constants.expoConfig?.hostUri;
+      const hostIp = hostUri ? hostUri.split(":")[0] : null;
 
-    if (!response.ok) {
-      let errorMessage = `HTTP Error ${response.status}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || errorMessage;
-      } catch {
-        // use default HTTP error
+      let fallbackBase: string | null = null;
+      if (url.includes("10.0.2.2") && hostIp && hostIp !== "localhost" && hostIp !== "127.0.0.1") {
+        fallbackBase = `http://${hostIp}:3000`;
+      } else if (!url.includes("10.0.2.2")) {
+        fallbackBase = "http://10.0.2.2:3000";
       }
-      throw new Error(errorMessage);
-    }
 
-    return (await response.json()) as T;
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-
-    // Automatic Android local network failover (e.g. LAN IP <-> 10.0.2.2 emulator alias)
-    if (Platform.OS === "android" && !endpoint.startsWith("http")) {
-      const isUsing10_0_2_2 = url.includes("10.0.2.2");
-      const fallbackBase = isUsing10_0_2_2 ? "http://localhost:3000" : "http://10.0.2.2:3000";
-      const fallbackUrl = `${fallbackBase}${endpoint}`;
-
-      if (fallbackUrl !== url) {
+      if (fallbackBase) {
+        const fallbackUrl = `${fallbackBase}${endpoint}`;
         try {
-          const fallbackResponse = await fetch(fallbackUrl, {
+          response = await fetchWithTimeout(fallbackUrl, {
             ...fetchOptions,
             headers,
+            timeoutMs,
           });
-          if (fallbackResponse.ok) {
-            return (await fallbackResponse.json()) as T;
-          }
         } catch {
-          // Ignore fallback failure, throw original
+          // Fallback failed, throw original error
+          throw primaryErr;
         }
+      } else {
+        throw primaryErr;
       }
+    } else {
+      if (primaryErr.name === "AbortError") {
+        throw new Error("Request timed out. Please check your network connection.");
+      }
+      throw primaryErr;
     }
-
-    if (err.name === "AbortError") {
-      throw new Error("Request timed out. Please check your network connection.");
-    }
-    throw err;
   }
+
+  // Preserve actual HTTP error codes from server (DO NOT RETRY 4xx or 5xx)
+  if (!response.ok) {
+    let errorMessage = `HTTP Error ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch {
+      // use default HTTP error
+    }
+    const httpErr: any = new Error(errorMessage);
+    httpErr.status = response.status;
+    throw httpErr;
+  }
+
+  return (await response.json()) as T;
 }

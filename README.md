@@ -1,4 +1,4 @@
-# Savour CookMate
+# Yummy Tummy
 
 > A production-grade React Native cooking companion backed by NestJS, Fastify, MongoDB Atlas, and Gemini.
 
@@ -6,7 +6,7 @@
 
 ## 🍽️ Overview
 
-**Savour CookMate** is a premium, consumer-oriented cooking and recipe discovery application. Taking cues from the visual hierarchy, information density, and frictionless experience of leading food apps such as Swiggy and Zomato, Savour CookMate turns home cooking into an effortless, delightful craft.
+**Yummy Tummy** is a premium, consumer-oriented cooking and recipe discovery application. Taking cues from the visual hierarchy, information density, and frictionless experience of leading food apps such as Swiggy and Zomato, Yummy Tummy turns home cooking into an effortless, delightful craft.
 
 ### 🌟 Core Principle
 
@@ -47,7 +47,7 @@
 ## 📁 Repository Structure
 
 ```
-savour-cookmate/
+yummy-tummy/
 ├── app/                            # Expo Router screens (file-based navigation)
 │   ├── _layout.tsx                 # Root layout with QueryClientProvider & global sheets
 │   └── (tabs)/                     # Bottom tab navigator
@@ -96,11 +96,10 @@ savour-cookmate/
 │           ├── recommendations/    # Deterministic 6-factor recommendation engine
 │           ├── favorites/          # Collections & bookmarks
 │           ├── shopping/           # Shopping list & 1-tap transfer to kitchen
-│           ├── history/            # Cooking session logger & analytics
+│           ├── history/            # Cooking history and analytics
 │           ├── youtube/            # Curated tutorial search with anti-mukbang filters
 │           └── gemini/             # Structured intent parsing, substitutes & advice
 ├── components/                     # Reusable native UI components
-│   ├── ActiveCookingSheet.tsx      # Full-screen guided cooking mode
 │   ├── AuthModal.tsx               # Google OAuth, Email/Pass, & Guest mode
 │   ├── FoodImage.tsx               # High-performance Expo Image with cache
 │   ├── RecipeCard.tsx              # High-density food card with real ratings
@@ -122,7 +121,7 @@ savour-cookmate/
 │   ├── recipeService.ts            # Client-to-MongoDB recipe mapper
 │   └── youtubeService.ts           # Deep-linking & video proxy
 ├── store/
-│   └── useAppStore.ts              # Zustand store strictly for local UI & cooking session
+│   └── useAppStore.ts              # Zustand store for local UI state
 └── types/
     └── index.ts                    # Core TypeScript domain models
 ```
@@ -188,7 +187,7 @@ cp .env.example .env
 
 Key environment variables:
 ```ini
-MONGODB_URI="mongodb+srv://<user>:<password>@cluster.mongodb.net/savour-cookmate?retryWrites=true&w=majority"
+MONGODB_URI="mongodb+srv://<user>:<password>@cluster.mongodb.net/yummy-tummy?retryWrites=true&w=majority"
 GEMINI_API_KEY="your_gemini_api_key_here"
 YOUTUBE_API_KEY="your_youtube_api_key_here"
 FIREBASE_PROJECT_ID="your-firebase-project"

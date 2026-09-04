@@ -97,20 +97,20 @@ export class Recipe {
   @Prop({ type: [String], default: [], index: true })
   dietaryTags: string[];
 
-  @Prop({ type: String, default: "Medium" })
-  difficulty: string;
+  @Prop({ type: String, required: false })
+  difficulty?: string;
 
-  @Prop({ type: Number, default: 15 })
-  prepTime: number;
+  @Prop({ type: Number, required: false })
+  prepTime?: number;
 
-  @Prop({ type: Number, default: 25 })
-  cookTime: number;
+  @Prop({ type: Number, required: false })
+  cookTime?: number;
 
-  @Prop({ type: Number, default: 40, index: true })
-  totalTime: number;
+  @Prop({ type: Number, required: false, index: true })
+  totalTime?: number;
 
-  @Prop({ type: Number, default: 2 })
-  servings: number;
+  @Prop({ type: Number, required: false })
+  servings?: number;
 
   @Prop({ type: String, default: "Main Course", index: true })
   category: string;

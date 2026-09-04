@@ -7,8 +7,8 @@ import {
   ScrollView,
   Pressable,
   Share,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   X,
   Star,
@@ -16,7 +16,8 @@ import {
   Flame,
   Users,
   Bookmark,
-  Play,
+  Pause,
+  Plus,
   Share2,
   Lightbulb,
   Video,
@@ -46,15 +47,22 @@ interface RecipeDetailModalProps {
 
 type TabType = 'overview' | 'ingredients' | 'steps' | 'videos';
 
-export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
+/**
+ * Keep the hook-owning content mounted only while a real recipe exists.
+ * The parent is always rendered by RootLayout, so returning before hooks here
+ * would otherwise change this component's hook order when a recipe is opened.
+ */
+const RecipeDetailModalContent: React.FC<{
+  visible: boolean;
+  recipe: Recipe;
+  onClose: () => void;
+}> = ({
   visible,
   recipe,
   onClose,
 }) => {
-  if (!recipe) return null;
-
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
-  const startCookingMode = useAppStore((state) => state.startCookingMode);
+  const addCookingHistory = useAppStore((state) => state.addCookingHistory);
   const pantryItems = useAppStore((state) => state.pantryItems);
   const addMissingToShoppingList = useAppStore(
     (state) => state.addMissingToShoppingList
@@ -68,6 +76,13 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [checkedIngredients, setCheckedIngredients] = useState<Record<number, boolean>>({});
   const [showAllVideos, setShowAllVideos] = useState<boolean>(false);
   const [videoFilter, setVideoFilter] = useState<YouTubeFilter>('recommended');
+  const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
+  const [activeTimer, setActiveTimer] = useState<{
+    seconds: number;
+    isRunning: boolean;
+    label: string;
+  } | null>(null);
+  const [isMarkedCooked, setIsMarkedCooked] = useState(false);
 
   // TanStack Query: Lazy-load YouTube videos ONLY when activeTab === 'videos'
   const {
@@ -110,6 +125,13 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
   const baseServings = recipe.servings || 4;
   const isSaved = recipe.isSaved;
+  const recipeSteps = recipe.parsedSteps && recipe.parsedSteps.length > 0
+    ? recipe.parsedSteps
+    : recipe.instructions.map((text, index) => ({
+        stepNumber: index + 1,
+        title: `Step ${index + 1}`,
+        text,
+      }));
 
   // Build pantry lookup set
   const pantryIngredientNames = useMemo(() => {
@@ -133,6 +155,32 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
       isMounted = false;
     };
   }, [visible, recipe?.id]);
+
+  useEffect(() => {
+    setActiveTab('overview');
+    setCurrentServings(recipe.servings || 4);
+    setCheckedIngredients({});
+    setCompletedSteps({});
+    setActiveTimer(null);
+    setIsMarkedCooked(false);
+  }, [recipe.id]);
+
+  useEffect(() => {
+    if (!activeTimer?.isRunning) return undefined;
+
+    const interval = setInterval(() => {
+      setActiveTimer((timer) => {
+        if (!timer) return null;
+        if (timer.seconds <= 1) {
+          setToast({ message: `${timer.label} timer finished`, type: 'success' });
+          return null;
+        }
+        return { ...timer, seconds: timer.seconds - 1 };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeTimer?.isRunning, setToast]);
 
   useEffect(() => {
     if (visible && recipe) {
@@ -217,16 +265,27 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     try {
       await Share.share({
         title: recipe.title,
-        message: `Check out this recipe for ${recipe.title} on Savour CookMate!`,
+        message: `Check out this recipe for ${recipe.title} on Yummy Tummy!`,
       });
     } catch {}
   };
 
-  const handleStartCooking = () => {
-    const stepsCount = recipe.parsedSteps?.length || recipe.instructions?.length || 0;
-    analytics.trackCookingStart(recipe.id, recipe.title || recipe.name, stepsCount);
-    onClose();
-    startCookingMode(recipe);
+  const handleStartTimer = (minutes: number, stepNumber: number) => {
+    setActiveTimer({ seconds: minutes * 60, isRunning: true, label: `Step ${stepNumber}` });
+  };
+
+  const handleMarkCooked = async () => {
+    if (isMarkedCooked) return;
+    setIsMarkedCooked(true);
+    await addCookingHistory(recipe);
+    api.recipes.recordCook(recipe.id).catch(() => {});
+    analytics.trackCookingComplete(recipe.id, recipeSteps.length);
+    setToast({ message: 'Added to your cooking history', type: 'success' });
+  };
+
+  const formatTimer = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${(seconds % 60).toString().padStart(2, '0')}`;
   };
 
   return (
@@ -311,23 +370,33 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                     <View style={styles.badgeDivider} />
                   </>
                 ) : null}
-                <View style={styles.badgeItem}>
-                  <Clock size={13} color={COLORS.textSecondary} />
-                  <Text style={styles.badgeValue}>
-                    {formatCookTime(recipe.cookTime || recipe.totalTime)}
-                  </Text>
-                </View>
-                <View style={styles.badgeDivider} />
-                <View style={styles.badgeItem}>
-                  <Flame size={13} color={COLORS.primary} />
-                  <Text style={styles.badgeValue}>
-                    {recipe.calories ? `${recipe.calories} kcal` : 'Moderate'}
-                  </Text>
-                </View>
-                <View style={styles.badgeDivider} />
-                <View style={styles.badgeItem}>
-                  <Text style={styles.badgeValue}>{recipe.difficulty}</Text>
-                </View>
+                {formatCookTime(recipe.cookTime || recipe.totalTime) ? (
+                  <>
+                    <View style={styles.badgeItem}>
+                      <Clock size={13} color={COLORS.textSecondary} />
+                      <Text style={styles.badgeValue}>
+                        {formatCookTime(recipe.cookTime || recipe.totalTime)}
+                      </Text>
+                    </View>
+                    <View style={styles.badgeDivider} />
+                  </>
+                ) : null}
+                {recipe.calories ? (
+                  <>
+                    <View style={styles.badgeItem}>
+                      <Flame size={13} color={COLORS.primary} />
+                      <Text style={styles.badgeValue}>
+                        {`${recipe.calories} kcal`}
+                      </Text>
+                    </View>
+                    <View style={styles.badgeDivider} />
+                  </>
+                ) : null}
+                {recipe.difficulty ? (
+                  <View style={styles.badgeItem}>
+                    <Text style={styles.badgeValue}>{recipe.difficulty}</Text>
+                  </View>
+                ) : null}
               </View>
             </View>
 
@@ -407,7 +476,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
             </View>
 
             {/* Tab 1: Overview */}
-            {activeTab === 'overview' && (
+            {activeTab === 'overview' ? (
               <View style={styles.tabContent}>
                 {/* Description */}
                 <View style={styles.cardSection}>
@@ -483,14 +552,14 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                               : '--'}
                           </Text>
                         </View>
-                        {nutritionData?.perServing?.fiber !== undefined && (
+                        {nutritionData?.perServing?.fiber !== undefined ? (
                           <View style={styles.nutritionCell}>
                             <Text style={styles.nutritionLabel}>Fiber</Text>
                             <Text style={styles.nutritionVal}>
                               {nutritionData.perServing.fiber}g
                             </Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
                       {currentServings > 1 && (nutritionData?.perServing?.calories || recipe.calories) ? (
                         <Text style={styles.nutritionTotalSubtext}>
@@ -507,7 +576,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 </View>
 
                 {/* Chef Tips */}
-                {recipe.tips && recipe.tips.length > 0 && (
+                {recipe.tips && recipe.tips.length > 0 ? (
                   <View style={styles.cardSection}>
                     <Text style={styles.sectionHeader}>Masterclass Secrets</Text>
                     {recipe.tips.map((tip, index) => (
@@ -517,10 +586,10 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                       </View>
                     ))}
                   </View>
-                )}
+                ) : null}
 
                 {/* Substitutions */}
-                {recipe.substitutions && recipe.substitutions.length > 0 && (
+                {recipe.substitutions && recipe.substitutions.length > 0 ? (
                   <View style={styles.cardSection}>
                     <Text style={styles.sectionHeader}>Smart Substitutions</Text>
                     {recipe.substitutions.map((sub, idx) => (
@@ -530,12 +599,12 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                       </View>
                     ))}
                   </View>
-                )}
+                ) : null}
               </View>
-            )}
+            ) : null}
 
             {/* Tab 2: Ingredients */}
-            {activeTab === 'ingredients' && (
+            {activeTab === 'ingredients' ? (
               <View style={styles.tabContent}>
                 <IngredientList
                   ingredients={recipe.ingredients}
@@ -551,37 +620,40 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                   onAddSingleMissing={handleAddSingleMissing}
                 />
               </View>
-            )}
+            ) : null}
 
             {/* Tab 3: Steps */}
-            {activeTab === 'steps' && (
+            {activeTab === 'steps' ? (
               <View style={styles.tabContent}>
-                {recipe.parsedSteps && recipe.parsedSteps.length > 0 ? (
-                  recipe.parsedSteps.map((step) => (
-                    <CookingStep
-                      key={step.stepNumber}
-                      step={step}
-                      totalSteps={recipe.instructions.length}
-                    />
-                  ))
-                ) : (
-                  recipe.instructions.map((inst, index) => (
-                    <CookingStep
-                      key={index}
-                      step={{
-                        stepNumber: index + 1,
-                        title: `Step ${index + 1}`,
-                        text: inst,
-                      }}
-                      totalSteps={recipe.instructions.length}
-                    />
-                  ))
-                )}
+                <Text style={styles.stepsIntro}>Follow at your own pace. Your checks stay with this recipe while it is open.</Text>
+                {recipeSteps.map((step) => (
+                  <CookingStep
+                    key={step.stepNumber}
+                    step={step}
+                    isComplete={Boolean(completedSteps[step.stepNumber])}
+                    onToggleComplete={() =>
+                      setCompletedSteps((current) => ({
+                        ...current,
+                        [step.stepNumber]: !current[step.stepNumber],
+                      }))
+                    }
+                    onStartTimer={(minutes) => handleStartTimer(minutes, step.stepNumber)}
+                  />
+                ))}
+                <Pressable
+                  style={[styles.markCookedButton, isMarkedCooked ? styles.markCookedButtonDone : null]}
+                  onPress={handleMarkCooked}
+                  disabled={isMarkedCooked}
+                  accessibilityRole="button"
+                  accessibilityLabel={isMarkedCooked ? 'Recipe marked as cooked' : 'Mark recipe as cooked'}
+                >
+                  <Text style={[styles.markCookedText, isMarkedCooked ? styles.markCookedTextDone : null]}>{isMarkedCooked ? 'Marked as Cooked' : 'Mark as Cooked'}</Text>
+                </Pressable>
               </View>
-            )}
+            ) : null}
 
             {/* Tab 4: Videos */}
-            {activeTab === 'videos' && (
+            {activeTab === 'videos' ? (
               <View style={styles.tabContent}>
                 <Text style={styles.sectionHeader}>Watch How It's Made</Text>
                 <Text style={styles.videoSubtext}>
@@ -629,7 +701,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                       />
                     ))}
 
-                    {videos.length > 3 && (
+                    {videos.length > 3 ? (
                       <Pressable
                         style={styles.showMoreVideosBtn}
                         onPress={() => setShowAllVideos(!showAllVideos)}
@@ -643,7 +715,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                             : `View All ${videos.length} Tutorials`}
                         </Text>
                       </Pressable>
-                    )}
+                    ) : null}
                   </>
                 ) : (
                   <View style={styles.emptyVideos}>
@@ -678,22 +750,53 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                   </View>
                 )}
               </View>
-            )}
+            ) : null}
           </ScrollView>
 
-          {/* Sticky Bottom Action Bar */}
-          <View style={styles.bottomBar}>
-            <Pressable
-              style={styles.startCookingBtn}
-              onPress={handleStartCooking}
-            >
-              <Play size={16} color={COLORS.textInverted} fill={COLORS.textInverted} />
-              <Text style={styles.startCookingText}>Start Cooking</Text>
-            </Pressable>
-          </View>
+          {activeTimer ? (
+            <View style={styles.compactTimer}>
+              <View>
+                <Text style={styles.compactTimerLabel}>{activeTimer.label} timer</Text>
+                <Text style={styles.compactTimerValue}>{formatTimer(activeTimer.seconds)}</Text>
+              </View>
+              <View style={styles.compactTimerActions}>
+                <Pressable
+                  style={styles.compactTimerAction}
+                  onPress={() => setActiveTimer((timer) => timer ? { ...timer, isRunning: !timer.isRunning } : null)}
+                  accessibilityLabel={activeTimer.isRunning ? 'Pause timer' : 'Resume timer'}
+                >
+                  {activeTimer.isRunning ? <Pause size={16} color={COLORS.textPrimary} /> : <Text style={styles.resumeTimerText}>Resume</Text>}
+                </Pressable>
+                <Pressable style={styles.compactTimerAction} onPress={() => setActiveTimer((timer) => timer ? { ...timer, seconds: timer.seconds + 60 } : null)} accessibilityLabel="Add one minute">
+                  <Plus size={16} color={COLORS.textPrimary} />
+                  <Text style={styles.timerActionText}>1 min</Text>
+                </Pressable>
+                <Pressable style={styles.compactTimerCancel} onPress={() => setActiveTimer(null)} accessibilityLabel="Cancel timer">
+                  <Text style={styles.compactTimerCancelText}>Cancel</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
       </SafeAreaView>
     </Modal>
+  );
+};
+
+export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
+  visible,
+  recipe,
+  onClose,
+}) => {
+  if (!recipe) return null;
+
+  return (
+    <RecipeDetailModalContent
+      key={recipe.id}
+      visible={visible}
+      recipe={recipe}
+      onClose={onClose}
+    />
   );
 };
 
@@ -735,7 +838,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContentInner: {
-    paddingBottom: 90,
+    paddingBottom: SPACING.lg,
   },
   heroWrapper: {
     width: '100%',
@@ -1039,29 +1142,91 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.weights.bold,
     color: COLORS.primary,
   },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.card,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderSubtle,
+  stepsIntro: {
+    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.sizes.caption,
+    lineHeight: 18,
+    marginBottom: SPACING.xs,
   },
-  startCookingBtn: {
-    flexDirection: 'row',
+  markCookedButton: {
+    marginTop: SPACING.lg,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: RADIUS.lg,
-    gap: 8,
+    borderRadius: RADIUS.md,
   },
-  startCookingText: {
+  markCookedButtonDone: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  markCookedText: {
     color: COLORS.textInverted,
     fontSize: TYPOGRAPHY.sizes.body,
     fontWeight: TYPOGRAPHY.weights.bold,
+  },
+  markCookedTextDone: {
+    color: COLORS.textSecondary,
+  },
+  compactTimer: {
+    position: 'absolute',
+    bottom: SPACING.md,
+    left: SPACING.md,
+    right: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    ...SHADOWS.cardHover,
+  },
+  compactTimerLabel: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.weights.medium,
+  },
+  compactTimerValue: {
+    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.sizes.h3,
+    fontWeight: TYPOGRAPHY.weights.bold,
+  },
+  compactTimerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  compactTimerAction: {
+    minHeight: 34,
+    paddingHorizontal: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  timerActionText: {
+    color: COLORS.textPrimary,
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  resumeTimerText: {
+    color: COLORS.textPrimary,
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  compactTimerCancel: {
+    minHeight: 34,
+    paddingHorizontal: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactTimerCancelText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.weights.semibold,
   },
 });

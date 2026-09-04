@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import { RecipesService } from "./recipes.service";
 import { FirebaseAuthGuard, Public, AuthenticatedUser } from "../../common/guards/firebase-auth.guard";
+import { RolesGuard, Roles } from "../../common/guards/roles.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 
 @Controller("api/v1/recipes")
@@ -113,7 +114,9 @@ export class RecipesController {
     );
   }
 
-  // Admin / Content Quality Workflows
+  // Admin / Content Quality Workflows - Restricted strictly to administrators
+  @UseGuards(RolesGuard)
+  @Roles("admin")
   @Patch(":id/status")
   async updateRecipeStatus(
     @Param("id") id: string,
@@ -122,6 +125,8 @@ export class RecipesController {
     return this.recipesService.updateStatus(id, body.status);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles("admin")
   @Patch(":id")
   async updateRecipeDetails(
     @Param("id") id: string,

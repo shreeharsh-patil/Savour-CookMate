@@ -6,8 +6,8 @@ import {
   Modal,
   ScrollView,
   Pressable,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Utensils, ArrowRight, Check } from 'lucide-react-native';
 import { useAppStore } from '../store/useAppStore';
 import { PreferenceSelector } from './PreferenceSelector';

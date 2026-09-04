@@ -26,6 +26,9 @@ export class PantryItem {
   @Prop({ type: Date })
   expiryDate?: Date;
 
+  @Prop({ type: String, default: "Produce" })
+  category: string;
+
   @Prop({ type: Boolean, default: false, index: true })
   lowStock: boolean;
 }

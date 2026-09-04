@@ -24,6 +24,7 @@ export interface VideoMetadata {
   views?: string; // only if real
   viewCount?: number; // only if real
   language?: string; // only if real and known
+  matchType?: "recommended" | "related";
   relevanceScore: number;
   provider: "recipe_source" | "youtube_data_api" | "invidious";
 }

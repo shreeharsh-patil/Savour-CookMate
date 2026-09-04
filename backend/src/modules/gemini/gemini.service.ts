@@ -63,7 +63,7 @@ export class GeminiService {
           apiKey: ENV.GEMINI_API_KEY,
           httpOptions: {
             headers: {
-              "User-Agent": "SavourCookMate/2.0",
+              "User-Agent": "YummyTummy/2.0",
             },
           },
         });

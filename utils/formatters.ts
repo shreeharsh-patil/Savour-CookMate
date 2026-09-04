@@ -1,9 +1,9 @@
 /**
- * Utility formatters for Savour CookMate
+ * Utility formatters for Yummy Tummy
  */
 
-export function formatCookTime(minutes: number): string {
-  if (!minutes || minutes <= 0) return '15 mins';
+export function formatCookTime(minutes?: number | null): string | null {
+  if (!minutes || isNaN(minutes) || minutes <= 0) return null;
   if (minutes >= 60) {
     const hrs = Math.floor(minutes / 60);
     const mins = minutes % 60;

@@ -11,6 +11,7 @@ export interface CreatePantryItemDto {
   quantity?: string;
   unit?: string;
   expiryDate?: string;
+  category?: string;
   lowStock?: boolean;
 }
 
@@ -71,6 +72,7 @@ export class PantryService {
         quantity: dto.quantity || "1",
         unit: dto.unit || "unit",
         expiryDate: expiry,
+        category: dto.category || "Produce",
         lowStock: Boolean(dto.lowStock),
       },
       { upsert: true, new: true }

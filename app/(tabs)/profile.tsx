@@ -219,7 +219,7 @@ export default function ProfileScreen() {
             <View style={styles.emptyHistory}>
               <Clock size={20} color={COLORS.textMuted} />
               <Text style={styles.emptyHistoryText}>
-                No cooking sessions yet. Tap 'Start Cooking' on any recipe to begin guided mode!
+                No cooked recipes yet. Mark a recipe as cooked from its Steps tab.
               </Text>
             </View>
           ) : (

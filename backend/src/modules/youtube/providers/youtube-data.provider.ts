@@ -21,6 +21,7 @@ import {
 } from "../youtube.utils";
 import {
   calculateRelevanceScore,
+  detectVideoLanguage,
   isDisqualifiedContent,
 } from "./ranking.utils";
 
@@ -39,7 +40,7 @@ export class YouTubeDataVideoProvider implements VideoProvider {
   ): Promise<VideoMetadata[]> {
     if (!this.isConfigured()) return [];
 
-    const dishQuery = `${options.dish.trim()} recipe`;
+    const dishQuery = `${query.trim()} recipe`;
     const preferredLang = options.languages?.[0];
     const langCode = normalizeLanguageCode(preferredLang);
 
@@ -61,7 +62,7 @@ export class YouTubeDataVideoProvider implements VideoProvider {
     try {
       const res = await fetch(searchUrl, {
         signal: controller.signal,
-        headers: { "User-Agent": "SavourCookMate/2.0" },
+        headers: { "User-Agent": "YummyTummy/2.0" },
       });
       clearTimeout(timeout);
 
@@ -110,7 +111,7 @@ export class YouTubeDataVideoProvider implements VideoProvider {
             description,
             channelTitle,
             durationSeconds,
-            language: preferredLang,
+            language: detectVideoLanguage(title, description),
           },
           options
         );
@@ -127,7 +128,7 @@ export class YouTubeDataVideoProvider implements VideoProvider {
           durationSeconds,
           views,
           viewCount,
-          language: preferredLang,
+          language: detectVideoLanguage(title, description),
           relevanceScore: score,
           provider: "youtube_data_api",
         });
@@ -172,23 +173,24 @@ export class YouTubeDataVideoProvider implements VideoProvider {
 
   async getVideoMetadata(videoId: string): Promise<VideoMetadata | null> {
     if (!this.isConfigured()) return null;
-
-    const detailsMap = await this.fetchVideoDetails([videoId]);
-    const detail = detailsMap[videoId];
-
-    return {
-      id: videoId,
-      title: "Recipe Tutorial",
-      channelTitle: "YouTube Creator",
-      thumbnailUrl: buildThumbnailUrl(videoId),
-      videoUrl: buildWatchUrl(videoId),
-      embedUrl: buildEmbedUrl(videoId),
-      duration: formatSeconds(detail?.durationSeconds),
-      durationSeconds: detail?.durationSeconds,
-      views: formatViews(detail?.viewCount),
-      viewCount: detail?.viewCount,
-      relevanceScore: 80,
-      provider: "youtube_data_api",
-    };
+    try {
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status&id=${encodeURIComponent(videoId)}&key=${ENV.YOUTUBE_API_KEY}`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const item = (await res.json()).items?.[0];
+      if (!item?.snippet?.title || item.status?.privacyStatus !== "public" || item.status?.embeddable === false) return null;
+      const durationSeconds = parseIsoDuration(item.contentDetails?.duration);
+      const viewCount = parseInt(item.statistics?.viewCount || "0", 10) || undefined;
+      const title = item.snippet.title;
+      const description = item.snippet.description || "";
+      return {
+        id: videoId, title, description, channelTitle: item.snippet.channelTitle || "",
+        thumbnailUrl: item.snippet.thumbnails?.high?.url || buildThumbnailUrl(videoId),
+        videoUrl: buildWatchUrl(videoId), embedUrl: buildEmbedUrl(videoId),
+        duration: formatSeconds(durationSeconds), durationSeconds: durationSeconds || undefined,
+        views: formatViews(viewCount), viewCount, language: detectVideoLanguage(title, description),
+        relevanceScore: 0, provider: "youtube_data_api",
+      };
+    } catch { return null; }
   }
 }

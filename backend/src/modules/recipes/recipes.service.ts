@@ -1,11 +1,17 @@
 import { Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
+import mongoose, { Model } from "mongoose";
 import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { Review, ReviewDocument } from "../../database/schemas/review.schema";
 import { CookingHistory, CookingHistoryDocument } from "../../database/schemas/cooking-history.schema";
 import { MealDbRecipeProvider } from "./providers/mealdb.provider";
 import { NormalizedRecipe } from "./providers/recipe-provider.interface";
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const MAX_SEARCH_LENGTH = 100;
 
 export interface RecipeFilterOptions {
   cuisine?: string;
@@ -96,15 +102,18 @@ export class RecipesService {
     const query: any = { status: "published" };
 
     if (cuisine && cuisine.toLowerCase() !== "all") {
-      query.cuisine = { $regex: new RegExp(`^${cuisine}$`, "i") };
+      const esc = escapeRegex(cuisine.trim().slice(0, MAX_SEARCH_LENGTH));
+      query.cuisine = { $regex: new RegExp(`^${esc}$`, "i") };
     }
 
     if (mealType && mealType.toLowerCase() !== "all") {
-      query.mealTypes = { $in: [new RegExp(mealType, "i")] };
+      const esc = escapeRegex(mealType.trim().slice(0, MAX_SEARCH_LENGTH));
+      query.mealTypes = { $in: [new RegExp(esc, "i")] };
     }
 
     if (diet && diet.toLowerCase() !== "all") {
-      query.dietaryTags = { $in: [new RegExp(diet, "i")] };
+      const esc = escapeRegex(diet.trim().slice(0, MAX_SEARCH_LENGTH));
+      query.dietaryTags = { $in: [new RegExp(esc, "i")] };
     }
 
     if (difficulty && difficulty.toLowerCase() !== "all") {
@@ -116,7 +125,8 @@ export class RecipesService {
     }
 
     if (search && search.trim()) {
-      query.$text = { $search: search.trim() };
+      const cleanSearch = search.trim().slice(0, MAX_SEARCH_LENGTH);
+      query.$text = { $search: cleanSearch };
     }
 
     let sortObj: any = { popularityScore: -1, cookCount: -1 };
@@ -139,7 +149,8 @@ export class RecipesService {
     // If searching and fewer than 3 results found in local cache, query TheMealDB and cache
     if (search && search.trim() && recipes.length < 3) {
       try {
-        const external = await this.mealDbProvider.searchRecipes(search.trim());
+        const cleanSearch = search.trim().slice(0, MAX_SEARCH_LENGTH);
+        const external = await this.mealDbProvider.searchRecipes(cleanSearch);
         if (external.length > 0) {
           const cached = await this.upsertProviderRecipes(external);
           const existingIds = new Set(recipes.map((r: any) => r._id?.toString()));
@@ -174,7 +185,8 @@ export class RecipesService {
       return this.recipeModel.find({ status: "published" }).limit(limit).lean();
     }
 
-    const clean = query.trim();
+    const clean = query.trim().slice(0, MAX_SEARCH_LENGTH);
+    const escaped = escapeRegex(clean);
 
     // 1. Check MongoDB text search
     let recipes = await this.recipeModel
@@ -182,9 +194,9 @@ export class RecipesService {
         status: "published",
         $or: [
           { $text: { $search: clean } },
-          { name: { $regex: clean, $options: "i" } },
-          { cuisine: { $regex: clean, $options: "i" } },
-          { "ingredients.name": { $regex: clean, $options: "i" } },
+          { name: { $regex: escaped, $options: "i" } },
+          { cuisine: { $regex: escaped, $options: "i" } },
+          { "ingredients.name": { $regex: escaped, $options: "i" } },
         ],
       })
       .sort({ popularityScore: -1, cookCount: -1 })
@@ -213,18 +225,29 @@ export class RecipesService {
   }
 
   async findById(id: string) {
-    let recipe = await this.recipeModel.findById(id).lean();
-    if (!recipe) {
-      recipe = await this.recipeModel.findOne({ slug: id }).lean();
+    if (!id || typeof id !== "string") {
+      throw new NotFoundException("Valid recipe ID or slug required.");
     }
-    if (!recipe) {
-      recipe = await this.recipeModel.findOne({ externalId: id }).lean();
+    const cleanId = id.trim();
+    let recipe: any = null;
+
+    // 1. Valid Mongo ObjectId -> _id
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      recipe = await this.recipeModel.findById(cleanId).lean();
     }
 
-    // If not found in DB, check TheMealDB by ID
+    // 2. Otherwise: slug, externalId
+    if (!recipe) {
+      recipe = await this.recipeModel.findOne({ slug: cleanId }).lean();
+    }
+    if (!recipe) {
+      recipe = await this.recipeModel.findOne({ externalId: cleanId }).lean();
+    }
+
+    // 3. Only then try external provider lookup
     if (!recipe) {
       try {
-        const external = await this.mealDbProvider.getRecipe(id);
+        const external = await this.mealDbProvider.getRecipe(cleanId);
         if (external) {
           const [saved] = await this.upsertProviderRecipes([external]);
           recipe = saved;
@@ -235,7 +258,7 @@ export class RecipesService {
     }
 
     if (!recipe) {
-      throw new NotFoundException(`Recipe with id or slug '${id}' not found.`);
+      throw new NotFoundException(`Recipe with id or slug '${cleanId}' not found.`);
     }
 
     // Fetch real reviews for this recipe

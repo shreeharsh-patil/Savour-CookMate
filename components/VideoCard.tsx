@@ -54,6 +54,17 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
       </View>
 
       <View style={styles.content}>
+        <View style={[
+          styles.matchBadge,
+          video.matchType === 'related' ? styles.relatedBadge : styles.recommendedBadge,
+        ]}>
+          <Text style={[
+            styles.matchBadgeText,
+            video.matchType === 'related' ? styles.relatedBadgeText : styles.recommendedBadgeText,
+          ]}>
+            {video.matchType === 'related' ? 'Related tutorial' : 'Recommended tutorial'}
+          </Text>
+        </View>
         <Text style={styles.title} numberOfLines={2}>
           {video.title}
         </Text>
@@ -69,6 +80,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
             </>
           ) : null}
         </View>
+        {video.matchType === 'related' ? (
+          <Text style={styles.relatedNote}>This tutorial is closely related to this dish.</Text>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -141,6 +155,18 @@ const styles = StyleSheet.create({
   content: {
     padding: SPACING.sm,
   },
+  matchBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: RADIUS.xs,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginBottom: 6,
+  },
+  recommendedBadge: { backgroundColor: COLORS.primaryLight },
+  relatedBadge: { backgroundColor: COLORS.surface },
+  matchBadgeText: { fontSize: 10, fontWeight: TYPOGRAPHY.weights.semibold },
+  recommendedBadgeText: { color: COLORS.primary },
+  relatedBadgeText: { color: COLORS.textSecondary },
   title: {
     fontSize: TYPOGRAPHY.sizes.subtext,
     fontWeight: TYPOGRAPHY.weights.bold,
@@ -165,5 +191,11 @@ const styles = StyleSheet.create({
   viewsText: {
     fontSize: 11,
     color: COLORS.textMuted,
+  },
+  relatedNote: {
+    marginTop: 6,
+    color: COLORS.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
   },
 });

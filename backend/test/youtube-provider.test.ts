@@ -155,8 +155,8 @@ describe("YouTube Ranking & Deterministic Relevance", () => {
     );
 
     assert.ok(
-      quickScore > longScore + 30,
-      `Quick tutorial score (${quickScore}) should far exceed long video (${longScore})`
+      quickScore > longScore,
+      `Quick tutorial score (${quickScore}) should outrank long video (${longScore}) without overriding dish relevance`
     );
   });
 
@@ -228,7 +228,7 @@ describe("RecipeSourceVideoProvider - Exact Recipe Linking", () => {
 
     assert.ok(video !== null);
     assert.equal(video.id, "dQw4w9WgXcQ");
-    assert.equal(video.title, "Chicken Handi - Official Recipe Tutorial");
+    assert.equal(video.title, "Open recipe tutorial");
     assert.equal(video.videoUrl, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
     assert.equal(video.relevanceScore, 100);
     assert.equal(video.provider, "recipe_source");

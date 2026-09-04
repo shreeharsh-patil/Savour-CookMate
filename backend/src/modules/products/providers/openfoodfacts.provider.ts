@@ -40,7 +40,7 @@ export class OpenFoodFactsProvider implements ProductProvider {
         signal: controller.signal,
         headers: {
           Accept: "application/json",
-          "User-Agent": "SavourCookMate/2.0 (contact@savourcookmate.app)",
+          "User-Agent": "YummyTummy/2.0 (contact@yummytummy.app)",
         },
       });
       clearTimeout(timeout);
@@ -78,7 +78,7 @@ export class OpenFoodFactsProvider implements ProductProvider {
         signal: controller.signal,
         headers: {
           Accept: "application/json",
-          "User-Agent": "SavourCookMate/2.0 (contact@savourcookmate.app)",
+          "User-Agent": "YummyTummy/2.0 (contact@yummytummy.app)",
         },
       });
       clearTimeout(timeout);

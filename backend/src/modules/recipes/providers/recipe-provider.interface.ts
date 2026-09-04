@@ -31,12 +31,12 @@ export interface NormalizedRecipe {
   youtubeUrl?: string;
   youtubeVideoId?: string;
   sourceUrl?: string;
-  totalTime: number;
-  prepTime: number;
-  cookTime: number;
-  servings: number;
+  totalTime?: number;
+  prepTime?: number;
+  cookTime?: number;
+  servings?: number;
   dietaryTags: string[];
-  difficulty: string;
+  difficulty?: string;
   searchKeywords: string[];
   lastSyncedAt: Date;
 }

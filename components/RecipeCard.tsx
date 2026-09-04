@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Star, Clock, Bookmark, Play } from 'lucide-react-native';
+import { Star, Clock, Bookmark } from 'lucide-react-native';
 import { Recipe } from '../types';
 import { FoodImage } from './FoodImage';
-import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { formatCookTime, formatRating } from '../utils/formatters';
 import { useAppStore } from '../store/useAppStore';
 
@@ -15,7 +15,6 @@ interface RecipeCardProps {
 export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
-  const startCookingMode = useAppStore((state) => state.startCookingMode);
 
   const isSaved = recipe.isSaved;
 
@@ -35,7 +34,6 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        SHADOWS.card,
         pressed && styles.cardPressed,
       ]}
       onPress={handlePress}
@@ -95,29 +93,25 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
         </Text>
 
         <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <Clock size={13} color={COLORS.textMuted} />
-            <Text style={styles.metaText}>{formatCookTime(recipe.cookTime || recipe.totalTime)}</Text>
-          </View>
-          <Text style={styles.metaDivider}>•</Text>
-          <Text style={styles.metaText}>{recipe.difficulty}</Text>
-          <Text style={styles.metaDivider}>•</Text>
+          {formatCookTime(recipe.cookTime || recipe.totalTime) ? (
+            <>
+              <View style={styles.metaItem}>
+                <Clock size={13} color={COLORS.textMuted} />
+                <Text style={styles.metaText}>{formatCookTime(recipe.cookTime || recipe.totalTime)}</Text>
+              </View>
+              <Text style={styles.metaDivider}>•</Text>
+            </>
+          ) : null}
+          {recipe.difficulty ? (
+            <>
+              <Text style={styles.metaText}>{recipe.difficulty}</Text>
+              <Text style={styles.metaDivider}>•</Text>
+            </>
+          ) : null}
           <Text style={styles.metaText}>{recipe.cuisine}</Text>
         </View>
 
-        {/* Bottom Quick Action Row */}
         <View style={styles.actionRow}>
-          <Pressable
-            style={styles.cookButton}
-            onPress={() => startCookingMode(recipe)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel={`Cook ${recipe.title || recipe.name}`}
-          >
-            <Play size={12} color={COLORS.textInverted} fill={COLORS.textInverted} />
-            <Text style={styles.cookButtonText}>Cook Now</Text>
-          </Pressable>
-
           <Pressable
             style={styles.detailsLink}
             onPress={handlePress}
@@ -136,7 +130,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.card,
-    borderRadius: RADIUS.xl,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: COLORS.borderSubtle,
@@ -146,7 +140,7 @@ const styles = StyleSheet.create({
     opacity: 0.96,
   },
   imageContainer: {
-    height: 190,
+    height: 210,
     width: '100%',
     position: 'relative',
   },
@@ -160,8 +154,7 @@ const styles = StyleSheet.create({
     left: 10,
     right: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   dietBadge: {
     width: 22,
@@ -222,7 +215,7 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.sizes.subtext,
     color: COLORS.textSecondary,
     lineHeight: 18,
-    marginBottom: SPACING.sm,
+    marginBottom: 10,
   },
   metaRow: {
     flexDirection: 'row',
@@ -248,24 +241,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
-    paddingTop: SPACING.xs,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderSubtle,
-  },
-  cookButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: RADIUS.md,
-    gap: 5,
-  },
-  cookButtonText: {
-    color: COLORS.textInverted,
-    fontSize: TYPOGRAPHY.sizes.caption,
-    fontWeight: TYPOGRAPHY.weights.bold,
+    marginTop: 2,
   },
   detailsLink: {
     paddingVertical: 6,

@@ -1,5 +1,5 @@
 /**
- * Savour CookMate - Core Type Definitions
+ * Yummy Tummy - Core Type Definitions
  */
 
 export type TabType = 'home' | 'explore' | 'pantry' | 'saved' | 'profile';
@@ -51,12 +51,12 @@ export interface Recipe {
   cuisine: string;
   mealType: string;
   diet: DietType | string;
-  difficulty: 'Easy' | 'Medium' | 'Advanced' | string;
-  prepTime: number; // in minutes
-  cookTime: number; // in minutes
-  totalTime: number; // in minutes
-  servings: number;
-  calories: number;
+  difficulty?: 'Easy' | 'Medium' | 'Advanced' | string;
+  prepTime?: number; // in minutes
+  cookTime?: number; // in minutes
+  totalTime?: number; // in minutes
+  servings?: number;
+  calories?: number;
   ratingEstimate?: number;
   averageRating?: number | null;
   ratingCount?: number;
@@ -150,6 +150,7 @@ export interface YouTubeVideo {
   views?: string;
   viewCount?: number;
   language?: string;
+  matchType?: 'recommended' | 'related';
   relevanceScore?: number;
   isQuick?: boolean;
   isDetailed?: boolean;

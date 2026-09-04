@@ -64,6 +64,7 @@ export default function PantryScreen() {
   const pantryItems = useAppStore((state) => state.pantryItems);
   const loadPantryItems = useAppStore((state) => state.loadPantryItems);
   const addPantryItem = useAppStore((state) => state.addPantryItem);
+  const restorePantryItem = useAppStore((state) => state.restorePantryItem);
   const removePantryItem = useAppStore((state) => state.removePantryItem);
   const clearAllPantryItems = useAppStore((state) => state.clearAllPantryItems);
   const pantryRecommendations = useAppStore(
@@ -125,20 +126,21 @@ export default function PantryScreen() {
     setInputName('');
   };
 
-  const handleRemoveItem = (item: PantryItem) => {
-    removePantryItem(item.id);
+  const handleRemoveItem = async (item: PantryItem) => {
     setLastRemovedItem(item);
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
     undoTimeoutRef.current = setTimeout(() => {
       setLastRemovedItem(null);
     }, 6000);
+    await removePantryItem(item.id);
   };
 
-  const handleUndoRemove = () => {
+  const handleUndoRemove = async () => {
     if (lastRemovedItem) {
-      addPantryItem(lastRemovedItem.name, lastRemovedItem.category);
+      const itemToRestore = lastRemovedItem;
       setLastRemovedItem(null);
       if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+      await restorePantryItem(itemToRestore);
     }
   };
 

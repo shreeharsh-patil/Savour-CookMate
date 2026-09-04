@@ -5,6 +5,7 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
+  ServiceUnavailableException,
   SetMetadata,
   Optional,
 } from "@nestjs/common";
@@ -74,6 +75,7 @@ export interface AuthenticatedUser {
   displayName?: string;
   avatar?: string;
   isGuest: boolean;
+  role?: string;
 }
 
 @Injectable()
@@ -99,6 +101,7 @@ export class FirebaseAuthGuard implements CanActivate {
           userId: "guest_anonymous",
           displayName: "Guest Chef",
           isGuest: true,
+          role: "user",
         } as AuthenticatedUser;
         return true;
       }
@@ -110,46 +113,75 @@ export class FirebaseAuthGuard implements CanActivate {
       : String(authHeader).trim();
 
     if (!token) {
-      if (isPublic) return true;
+      if (isPublic) {
+        request.user = {
+          userId: "guest_anonymous",
+          displayName: "Guest Chef",
+          isGuest: true,
+          role: "user",
+        } as AuthenticatedUser;
+        return true;
+      }
       throw new UnauthorizedException("Empty bearer token provided.");
     }
 
     // Handle guest sessions
     if (token.startsWith("guest_") || token === "guest") {
-      request.user = {
-        userId: token === "guest" ? "guest_default" : token,
-        displayName: "Guest Chef",
-        isGuest: true,
-      } as AuthenticatedUser;
-      return true;
+      if (isPublic) {
+        request.user = {
+          userId: token === "guest" ? "guest_anonymous" : token,
+          displayName: "Guest Chef",
+          isGuest: true,
+          role: "user",
+        } as AuthenticatedUser;
+        return true;
+      }
+      // Protected endpoints MUST NOT accept guest tokens
+      throw new UnauthorizedException(
+        "Authenticated account required. Guest sessions cannot access this resource."
+      );
     }
 
     // Verify Firebase token if initialized
     if (isFirebaseInitialized) {
       try {
         const decoded = await getAuth().verifyIdToken(token);
+        const isAdmin = decoded.admin === true || decoded.role === "admin";
         request.user = {
           userId: decoded.uid,
           email: decoded.email,
           displayName: decoded.name || decoded.email?.split("@")[0] || "Chef",
           avatar: decoded.picture,
           isGuest: false,
+          role: isAdmin ? "admin" : "user",
         } as AuthenticatedUser;
         return true;
       } catch (err) {
         if (isPublic) {
-          request.user = { userId: "guest_anonymous", isGuest: true };
+          request.user = {
+            userId: "guest_anonymous",
+            displayName: "Guest Chef",
+            isGuest: true,
+            role: "user",
+          } as AuthenticatedUser;
           return true;
         }
         throw new UnauthorizedException("Invalid or expired authentication token.");
       }
     } else {
-      request.user = {
-        userId: token.startsWith("usr_") ? token : `usr_${token.slice(0, 16)}`,
-        displayName: "Home Cook",
-        isGuest: false,
-      } as AuthenticatedUser;
-      return true;
+      // FAIL CLOSED: If Firebase Admin is not initialized, do NOT trust arbitrary tokens
+      if (isPublic) {
+        request.user = {
+          userId: "guest_anonymous",
+          displayName: "Guest Chef",
+          isGuest: true,
+          role: "user",
+        } as AuthenticatedUser;
+        return true;
+      }
+      throw new ServiceUnavailableException(
+        "Authentication service is unavailable. Server configuration required."
+      );
     }
   }
 }

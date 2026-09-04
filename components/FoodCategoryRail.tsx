@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { FoodImage } from './FoodImage';
 import { WHAT_ON_YOUR_MIND, FoodCategory } from '../constants/categories';
-import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { COLORS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 interface FoodCategoryRailProps {
   selectedCategory: string | null;
@@ -21,6 +21,8 @@ export const FoodCategoryRail: React.FC<FoodCategoryRailProps> = ({
   onSelectCategory,
   onResetCategory,
 }) => {
+  const showReset = Boolean(selectedCategory && onResetCategory);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -28,11 +30,11 @@ export const FoodCategoryRail: React.FC<FoodCategoryRailProps> = ({
           <Text style={styles.sectionPretitle}>Inspiration</Text>
           <Text style={styles.sectionTitle}>What's on your mind?</Text>
         </View>
-        {selectedCategory && onResetCategory && (
+        {showReset ? (
           <Pressable onPress={onResetCategory} hitSlop={8}>
             <Text style={styles.resetButton}>See All</Text>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       <ScrollView
@@ -46,30 +48,23 @@ export const FoodCategoryRail: React.FC<FoodCategoryRailProps> = ({
           return (
             <Pressable
               key={cat.id}
-              style={({ pressed }) => [
-                styles.categoryItem,
-                isSelected && styles.categoryItemSelected,
-                pressed && styles.categoryItemPressed,
-              ]}
+              style={styles.categoryItem}
               onPress={() => onSelectCategory(cat.name)}
             >
               <View
-                style={[
-                  styles.imageWrapper,
-                  isSelected && styles.imageWrapperSelected,
-                ]}
+                style={isSelected ? [styles.imageWrapper, styles.imageWrapperSelected] : styles.imageWrapper}
               >
-                <FoodImage
-                  source={{ uri: cat.imageUrl }}
-                  style={styles.circleImage}
-                  borderRadius={32}
-                />
+                <View style={styles.imageContainer}>
+                  <FoodImage
+                    source={{ uri: cat.imageUrl }}
+                    style={styles.circleImage}
+                    borderRadius={30}
+                    contentFit="cover"
+                  />
+                </View>
               </View>
               <Text
-                style={[
-                  styles.categoryName,
-                  isSelected && styles.categoryNameSelected,
-                ]}
+                style={isSelected ? [styles.categoryName, styles.categoryNameSelected] : styles.categoryName}
                 numberOfLines={1}
               >
                 {cat.name}
@@ -123,31 +118,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 68,
   },
-  categoryItemSelected: {
-    transform: [{ scale: 1.04 }],
-  },
-  categoryItemPressed: {
-    opacity: 0.85,
-  },
   imageWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    padding: 2,
-    backgroundColor: COLORS.card,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     marginBottom: 6,
-    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   imageWrapperSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight,
     borderWidth: 2,
+    padding: 2,
+  },
+  imageContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
   },
   circleImage: {
-    width: '100%',
-    height: '100%',
+    width: 60,
+    height: 60,
     borderRadius: 30,
   },
   categoryName: {

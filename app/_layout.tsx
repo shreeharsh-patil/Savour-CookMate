@@ -7,7 +7,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAppStore } from "../store/useAppStore";
 import { Toast } from "../components/Toast";
 import { RecipeDetailModal } from "../components/RecipeDetailModal";
-import { ActiveCookingSheet } from "../components/ActiveCookingSheet";
 import { YouTubePlayerModal } from "../components/YouTubePlayerModal";
 import { ShoppingListModal } from "../components/ShoppingListModal";
 import { AuthModal } from "../components/AuthModal";
@@ -28,7 +27,6 @@ export default function RootLayout() {
   const loadAuthUser = useAppStore((state) => state.loadAuthUser);
   const selectedRecipe = useAppStore((state) => state.selectedRecipe);
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
-  const isCookingMode = useAppStore((state) => state.isCookingMode);
 
   useEffect(() => {
     loadAuthUser();
@@ -46,11 +44,10 @@ export default function RootLayout() {
           {/* Global Overlays & Modals */}
           <Toast />
           <RecipeDetailModal
-            visible={Boolean(selectedRecipe) && !isCookingMode}
+            visible={Boolean(selectedRecipe)}
             recipe={selectedRecipe}
             onClose={() => setSelectedRecipe(null)}
           />
-          <ActiveCookingSheet />
           <YouTubePlayerModal />
           <ShoppingListModal />
           <AuthModal />

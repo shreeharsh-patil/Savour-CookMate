@@ -19,6 +19,7 @@ import {
 } from "../youtube.utils";
 import {
   calculateRelevanceScore,
+  detectVideoLanguage,
   isDisqualifiedContent,
 } from "./ranking.utils";
 
@@ -44,8 +45,7 @@ export class InvidiousVideoProvider implements VideoProvider {
     const instances = this.getInstances();
     if (instances.length === 0) return [];
 
-    const searchQuery = `${options.dish.trim()} recipe tutorial`;
-    const preferredLang = options.languages?.[0];
+    const searchQuery = `${query.trim()} recipe tutorial`;
 
     // Try up to MAX_ATTEMPTS instances
     for (let i = 0; i < Math.min(instances.length, this.MAX_ATTEMPTS); i++) {
@@ -62,7 +62,7 @@ export class InvidiousVideoProvider implements VideoProvider {
           signal: controller.signal,
           headers: {
             Accept: "application/json",
-            "User-Agent": "SavourCookMate/2.0",
+            "User-Agent": "YummyTummy/2.0",
           },
         });
         clearTimeout(timeout);
@@ -111,7 +111,7 @@ export class InvidiousVideoProvider implements VideoProvider {
               description,
               channelTitle,
               durationSeconds,
-              language: preferredLang,
+              language: detectVideoLanguage(title, description),
             },
             options
           );
@@ -128,7 +128,7 @@ export class InvidiousVideoProvider implements VideoProvider {
             durationSeconds,
             views,
             viewCount,
-            language: preferredLang,
+            language: detectVideoLanguage(title, description),
             relevanceScore: score,
             provider: "invidious",
           });
@@ -162,10 +162,11 @@ export class InvidiousVideoProvider implements VideoProvider {
         if (!res.ok) continue;
 
         const data = await res.json();
+        if (!data?.title) continue;
         return {
           id: videoId,
-          title: data.title || "Recipe Tutorial",
-          channelTitle: data.author || "Culinary Chef",
+          title: data.title || "",
+          channelTitle: data.author || "",
           thumbnailUrl: buildThumbnailUrl(videoId),
           videoUrl: buildWatchUrl(videoId),
           embedUrl: buildEmbedUrl(videoId),
@@ -173,6 +174,7 @@ export class InvidiousVideoProvider implements VideoProvider {
           durationSeconds: data.lengthSeconds,
           views: formatViews(data.viewCount),
           viewCount: data.viewCount,
+          language: detectVideoLanguage(data.title || "", data.description || ""),
           relevanceScore: 75,
           provider: "invidious",
         };

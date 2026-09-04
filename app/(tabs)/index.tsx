@@ -12,9 +12,6 @@ import { useRouter } from 'expo-router';
 import {
   Refrigerator,
   ArrowRight,
-  Flame,
-  Zap,
-  Clock,
 } from 'lucide-react-native';
 import { useAppStore } from '../../store/useAppStore';
 import { HomeHeader } from '../../components/HomeHeader';
@@ -51,14 +48,10 @@ export default function HomeScreen() {
   const searchHomeWithPrompt = useAppStore(
     (state) => state.searchHomeWithPrompt
   );
-  const startCookingMode = useAppStore((state) => state.startCookingMode);
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
   const pantryCount = useAppStore((state) => state.pantryItems.length);
   const setAuthModalOpen = useAppStore((state) => state.setAuthModalOpen);
   const recentlyViewedRecipes = useAppStore((state) => state.recentlyViewedRecipes);
-  const isCookingMode = useAppStore((state) => state.isCookingMode);
-  const selectedRecipe = useAppStore((state) => state.selectedRecipe);
-  const cookingStepIndex = useAppStore((state) => state.cookingStepIndex);
 
   useEffect(() => {
     if (homeRecipes.length === 0) {
@@ -92,9 +85,10 @@ export default function HomeScreen() {
 
   const featuredRecipe = homeRecipes[0];
   const remainingRecipes = homeRecipes.slice(1);
-  const quickMeals = homeRecipes.filter(
-    (r) => (r.cookTime || r.totalTime) <= 25
-  );
+  const quickMeals = homeRecipes.filter((r) => {
+    const minutes = r.cookTime ?? r.totalTime;
+    return minutes != null && minutes <= 25;
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -111,10 +105,9 @@ export default function HomeScreen() {
           />
         }
       >
+        <View style={styles.pageContent}>
         {/* 1. Header */}
         <HomeHeader
-          onRefresh={handleRefresh}
-          isRefreshing={isHomeLoading}
           onOpenProfile={() => router.push('/(tabs)/profile')}
         />
 
@@ -182,38 +175,11 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {/* Active / Resume Cooking Session Card */}
-        {isCookingMode && selectedRecipe ? (
-          <View style={styles.paddedContainer}>
-            <Pressable
-              style={styles.resumeSessionCard}
-              onPress={() => {}}
-              accessibilityRole="button"
-              accessibilityLabel={`Resume cooking ${selectedRecipe.title || selectedRecipe.name}`}
-            >
-              <View style={styles.resumeIconWrap}>
-                <Flame size={18} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.resumePretitle}>ACTIVE COOKING SESSION</Text>
-                <Text style={styles.resumeTitle} numberOfLines={1}>
-                  {selectedRecipe.title || selectedRecipe.name}
-                </Text>
-                <Text style={styles.resumeSubtitle}>
-                  Step {cookingStepIndex + 1} of {selectedRecipe.steps?.length || 1} in progress • Tap to continue
-                </Text>
-              </View>
-              <ArrowRight size={18} color={COLORS.primary} />
-            </Pressable>
-          </View>
-        ) : null}
-
         {/* 5. Spotlight Recommendation Hero */}
         {featuredRecipe && !isHomeLoading ? (
           <View style={styles.heroContainer}>
             <RecipeHero
               recipe={featuredRecipe}
-              onStartCooking={() => startCookingMode(featuredRecipe)}
               onWatchVideo={() => setSelectedRecipe(featuredRecipe)}
             />
           </View>
@@ -222,28 +188,25 @@ export default function HomeScreen() {
         {/* 6. Pantry Callout Card ("Cook With What I Have") */}
         <View style={styles.paddedContainer}>
           <Pressable
-            style={[styles.pantryBanner, SHADOWS.card]}
+            style={styles.pantryBanner}
             onPress={() => router.push('/(tabs)/pantry')}
           >
+            <View style={styles.pantryIcon}>
+              <Refrigerator size={20} color={COLORS.primary} />
+            </View>
             <View style={styles.pantryBannerTextCol}>
-              <View style={styles.pantryBannerPretitle}>
-                <Refrigerator size={13} color={COLORS.textInverted} />
-                <Text style={styles.pantryBannerPretitleText}>
-                  Kitchen Pantry
-                </Text>
-              </View>
               <Text style={styles.pantryBannerTitle}>
-                Cook with what you have
+                My Kitchen
               </Text>
               <Text style={styles.pantryBannerSubtitle}>
                 {pantryCount > 0
-                  ? `You have ${pantryCount} items in your kitchen. Tap to find matching recipes!`
-                  : 'Add ingredients from your fridge & pantry to discover effortless zero-waste dishes.'}
+                  ? `Cook with the ${pantryCount} ingredients already in your kitchen.`
+                  : 'Find recipes using ingredients already in your kitchen.'}
               </Text>
             </View>
 
             <View style={styles.pantryBannerArrow}>
-              <ArrowRight size={18} color={COLORS.textInverted} />
+              <ArrowRight size={18} color={COLORS.primary} />
             </View>
           </Pressable>
         </View>
@@ -254,7 +217,6 @@ export default function HomeScreen() {
             <View style={styles.sectionHeaderRow}>
               <View>
                 <View style={styles.iconHeadingRow}>
-                  <Zap size={14} color={COLORS.primary} />
                   <Text style={styles.sectionPretitle}>Quick Dinners</Text>
                 </View>
                 <Text style={styles.sectionTitle}>Ready in 25 Minutes</Text>
@@ -278,10 +240,6 @@ export default function HomeScreen() {
           <View style={styles.carouselSection}>
             <View style={styles.sectionHeaderRow}>
               <View>
-                <View style={styles.iconHeadingRow}>
-                  <Clock size={14} color={COLORS.primary} />
-                  <Text style={styles.sectionPretitle}>Pick Up Where You Left Off</Text>
-                </View>
                 <Text style={styles.sectionTitle}>Recently Viewed</Text>
               </View>
             </View>
@@ -364,6 +322,7 @@ export default function HomeScreen() {
             </View>
           </View>
         ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -379,13 +338,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: SPACING.xxxl,
-    gap: SPACING.md,
+  },
+  pageContent: {
+    width: '100%',
+    maxWidth: 1240,
+    alignSelf: 'center',
+    gap: SPACING.lg,
   },
   paddedContainer: {
     paddingHorizontal: SPACING.md,
   },
   heroContainer: {
-    marginTop: SPACING.xs,
+    marginTop: -SPACING.sm,
   },
   channelsSection: {
     paddingVertical: 2,
@@ -396,14 +360,14 @@ const styles = StyleSheet.create({
   },
   channelPill: {
     backgroundColor: COLORS.card,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.sm,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   channelPillSelected: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
     borderColor: COLORS.primary,
   },
   channelPillText: {
@@ -412,54 +376,47 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   channelPillTextSelected: {
-    color: COLORS.textInverted,
+    color: COLORS.primary,
     fontWeight: TYPOGRAPHY.weights.bold,
   },
   pantryBanner: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: SPACING.sm,
+  },
+  pantryIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pantryBannerTextCol: {
     flex: 1,
     marginRight: 12,
   },
-  pantryBannerPretitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-    marginBottom: 6,
-  },
-  pantryBannerPretitleText: {
-    color: COLORS.textInverted,
-    fontSize: 9,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    textTransform: 'uppercase',
-  },
   pantryBannerTitle: {
     fontSize: TYPOGRAPHY.sizes.h3,
     fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.textInverted,
-    marginBottom: 4,
+    color: COLORS.textPrimary,
+    marginBottom: 2,
   },
   pantryBannerSubtitle: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 16,
+    fontSize: TYPOGRAPHY.sizes.subtext,
+    color: COLORS.textSecondary,
+    lineHeight: 17,
   },
   pantryBannerArrow: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -479,16 +436,13 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sectionPretitle: {
-    fontSize: TYPOGRAPHY.sizes.tiny,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 2,
+    fontSize: TYPOGRAPHY.sizes.subtext,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
   },
   sectionTitle: {
     fontSize: TYPOGRAPHY.sizes.h2,
-    fontFamily: TYPOGRAPHY.fontSerif,
     fontWeight: TYPOGRAPHY.weights.bold,
     color: COLORS.textPrimary,
   },
@@ -542,40 +496,5 @@ const styles = StyleSheet.create({
   },
   recipesList: {
     gap: SPACING.xs,
-  },
-  resumeSessionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: `${COLORS.primary}15`,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1.5,
-    borderColor: `${COLORS.primary}50`,
-    gap: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  resumeIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${COLORS.primary}25`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resumePretitle: {
-    fontSize: 10,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.primary,
-    letterSpacing: 0.5,
-  },
-  resumeTitle: {
-    fontSize: TYPOGRAPHY.sizes.body,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.textPrimary,
-  },
-  resumeSubtitle: {
-    fontSize: TYPOGRAPHY.sizes.caption,
-    color: COLORS.textSecondary,
-    marginTop: 2,
   },
 });

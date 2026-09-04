@@ -1,13 +1,13 @@
 /**
- * Savour CookMate - Brand Constants & Identity
+ * Yummy Tummy - Brand Constants & Identity
  * Standardized across the entire mobile application.
  */
 
 export const BRAND = {
   /** Primary Wordmark */
-  WORDMARK: 'Savour',
+  WORDMARK: 'Yummy Tummy',
   /** Full Product Name */
-  NAME: 'Savour CookMate',
+  NAME: 'Yummy Tummy',
   /** Tagline */
   TAGLINE: 'Your Live Culinary Companion',
   /** Natural search prompt */

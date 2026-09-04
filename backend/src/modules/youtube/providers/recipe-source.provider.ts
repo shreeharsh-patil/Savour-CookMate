@@ -38,8 +38,9 @@ export class RecipeSourceVideoProvider implements VideoProvider {
 
     return {
       id: videoId,
-      title: `${recipe.name} - Official Recipe Tutorial`,
-      channelTitle: recipe.source || "Recipe Source",
+      // The linked recipe establishes identity; metadata is not invented.
+      title: "Open recipe tutorial",
+      channelTitle: recipe.source || "",
       thumbnailUrl: buildThumbnailUrl(videoId),
       videoUrl: buildWatchUrl(videoId),
       embedUrl: buildEmbedUrl(videoId),
@@ -64,20 +65,31 @@ export class RecipeSourceVideoProvider implements VideoProvider {
   async getVideoMetadata(videoId: string): Promise<VideoMetadata | null> {
     const cleanId = extractYouTubeVideoId(videoId);
     if (!cleanId) return null;
-
-    return {
-      id: cleanId,
-      title: "Recipe Tutorial",
-      channelTitle: "Culinary Video",
-      thumbnailUrl: buildThumbnailUrl(cleanId),
-      videoUrl: buildWatchUrl(cleanId),
-      embedUrl: buildEmbedUrl(cleanId),
-      duration: undefined,
-      durationSeconds: undefined,
-      views: undefined,
-      viewCount: undefined,
-      relevanceScore: 100,
-      provider: "recipe_source",
-    };
+    // oEmbed is a keyless public availability check and returns real title/channel
+    // data. It fails for removed, private, or otherwise unavailable videos.
+    try {
+      const url = `https://www.youtube.com/oembed?url=${encodeURIComponent(buildWatchUrl(cleanId))}&format=json`;
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (!data?.title || !data?.author_name) return null;
+      return {
+        id: cleanId,
+        title: data.title,
+        channelTitle: data.author_name,
+        thumbnailUrl: data.thumbnail_url || buildThumbnailUrl(cleanId),
+        videoUrl: buildWatchUrl(cleanId),
+        embedUrl: buildEmbedUrl(cleanId),
+        duration: undefined,
+        durationSeconds: undefined,
+        views: undefined,
+        viewCount: undefined,
+        language: undefined,
+        relevanceScore: 100,
+        provider: "recipe_source",
+      };
+    } catch {
+      return null;
+    }
   }
 }

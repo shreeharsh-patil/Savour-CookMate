@@ -21,9 +21,15 @@ async function bootstrap() {
     contentSecurityPolicy: false,
   });
 
-  // Security: CORS configuration
+  // Security: CORS configuration (CORS_ORIGIN supports "*" or a comma-separated list)
+  const corsOrigin: any =
+    ENV.CORS_ORIGIN === "*" || ENV.CORS_ORIGIN === "true"
+      ? true
+      : ENV.CORS_ORIGIN.split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean);
   await app.register(fastifyCors as any, {
-    origin: true,
+    origin: corsOrigin,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   });
@@ -45,7 +51,7 @@ async function bootstrap() {
   fastifyInstance.get("/api/health", async (req, reply) => {
     return {
       status: "ok",
-      service: "savour-cookmate-backend",
+      service: "yummy-tummy-backend",
       version: "2.0.0",
       timestamp: new Date().toISOString(),
       database: "MongoDB Atlas",
@@ -55,7 +61,7 @@ async function bootstrap() {
 
   await app.listen(ENV.PORT, "0.0.0.0");
   console.log(`\n======================================================`);
-  console.log(`  Savour CookMate NestJS API Server (Fastify + MongoDB) `);
+  console.log(`  Yummy Tummy NestJS API Server (Fastify + MongoDB) `);
   console.log(`  Running on: http://localhost:${ENV.PORT}             `);
   console.log(`  Health check: http://localhost:${ENV.PORT}/api/health `);
   console.log(`======================================================\n`);

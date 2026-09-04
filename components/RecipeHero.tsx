@@ -1,272 +1,61 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Star, Clock, Flame, Users, Bookmark, Play, Share2 } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { Clock, Flame, Users, Bookmark, Share2 } from 'lucide-react-native';
 import { Recipe } from '../types';
 import { FoodImage } from './FoodImage';
-import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme';
-import { formatCookTime, formatRating, formatCalories } from '../utils/formatters';
+import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { formatCookTime, formatCalories } from '../utils/formatters';
 import { useAppStore } from '../store/useAppStore';
 
-interface RecipeHeroProps {
-  recipe: Recipe;
-  onStartCooking: () => void;
-  onWatchVideo?: () => void;
-  onShare?: () => void;
-}
+interface RecipeHeroProps { recipe: Recipe; onWatchVideo?: () => void; onShare?: () => void; }
 
-export const RecipeHero: React.FC<RecipeHeroProps> = ({
-  recipe,
-  onStartCooking,
-  onWatchVideo,
-  onShare,
-}) => {
+export const RecipeHero: React.FC<RecipeHeroProps> = ({ recipe, onWatchVideo, onShare }) => {
+  const { width } = useWindowDimensions();
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
   const isSaved = recipe.isSaved;
+  const isCompact = width <= 768;
+  const diet = recipe.diet === 'Vegetarian' || recipe.diet === 'Vegan' ? recipe.diet : null;
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.imageWrapper}>
-        <FoodImage source={{ uri: recipe.imageUrl || '' }} style={styles.heroImage} />
-        <View style={styles.gradientOverlay} />
-
-        {/* Floating Top Bar */}
-        <View style={styles.topBar}>
-          <View style={styles.cuisineTag}>
-            <Text style={styles.cuisineText}>{recipe.cuisine}</Text>
-          </View>
-
-          <View style={styles.topRightActions}>
-            {onShare && (
-              <Pressable style={styles.circleBtn} onPress={onShare} hitSlop={8}>
-                <Share2 size={16} color={COLORS.textPrimary} />
-              </Pressable>
-            )}
-            <Pressable
-              style={styles.circleBtn}
-              onPress={() => toggleSaveRecipe(recipe)}
-              hitSlop={8}
-            >
-              <Bookmark
-                size={16}
-                color={isSaved ? COLORS.primary : COLORS.textPrimary}
-                fill={isSaved ? COLORS.primary : 'transparent'}
-              />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Floating Card overlay */}
-        <View style={[styles.floatingCard, SHADOWS.card]}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={2}>
-              {recipe.title || recipe.name}
-            </Text>
-          </View>
-
-          <Text style={styles.description} numberOfLines={2}>
-            {recipe.tagline || recipe.description}
-          </Text>
-
-          {/* Quick Metrics */}
-          <View style={styles.metricsRow}>
-            {recipe.averageRating && recipe.averageRating > 0 ? (
-              <>
-                <View style={styles.metricItem}>
-                  <Star size={13} color="#FBBF24" fill="#FBBF24" />
-                  <Text style={styles.metricValue}>{formatRating(recipe.averageRating)}</Text>
-                </View>
-                <View style={styles.metricDivider} />
-              </>
-            ) : null}
-            <View style={styles.metricItem}>
-              <Clock size={13} color={COLORS.textSecondary} />
-              <Text style={styles.metricValue}>
-                {formatCookTime(recipe.cookTime || recipe.totalTime)}
-              </Text>
-            </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricItem}>
-              <Flame size={13} color={COLORS.primary} />
-              <Text style={styles.metricValue}>{formatCalories(recipe.calories)}</Text>
-            </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricItem}>
-              <Users size={13} color={COLORS.textSecondary} />
-              <Text style={styles.metricValue}>{recipe.servings} servings</Text>
-            </View>
-          </View>
-
-          {/* Primary Action Button */}
-          <View style={styles.actionRow}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.startCookingBtn,
-                pressed && styles.startCookingBtnPressed,
-              ]}
-              onPress={onStartCooking}
-            >
-              <Play size={14} color={COLORS.textInverted} fill={COLORS.textInverted} />
-              <Text style={styles.startCookingText}>Start Guided Cooking</Text>
-            </Pressable>
-
-            {onWatchVideo && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.watchVideoBtn,
-                  pressed && styles.watchVideoBtnPressed,
-                ]}
-                onPress={onWatchVideo}
-              >
-                <Text style={styles.watchVideoText}>Watch Video</Text>
-              </Pressable>
-            )}
-          </View>
+  return <View style={[styles.container, !isCompact && styles.containerDesktop]}>
+    <View style={[styles.imageWrapper, !isCompact && styles.imageWrapperDesktop]}>
+      <FoodImage source={{ uri: recipe.imageUrl || '' }} style={styles.heroImage} />
+      <View style={styles.topBar}>
+        <View style={styles.cuisineTag}><Text style={styles.cuisineText}>{recipe.cuisine}</Text></View>
+        <View style={styles.topRightActions}>
+          {onShare ? <Pressable style={styles.iconButton} onPress={onShare} hitSlop={8} accessibilityLabel="Share recipe"><Share2 size={17} color={COLORS.textPrimary} /></Pressable> : null}
+          <Pressable style={styles.iconButton} onPress={() => toggleSaveRecipe(recipe)} hitSlop={8} accessibilityLabel={isSaved ? 'Remove from saved recipes' : 'Save recipe'}>
+            <Bookmark size={17} color={isSaved ? COLORS.primary : COLORS.textPrimary} fill={isSaved ? COLORS.primary : 'transparent'} />
+          </Pressable>
         </View>
       </View>
     </View>
-  );
+    <View style={[styles.infoPanel, !isCompact && styles.infoPanelDesktop]}>
+      <Text style={[styles.title, !isCompact && styles.titleDesktop]} numberOfLines={2}>{recipe.title || recipe.name}</Text>
+      <Text style={styles.categoryLine} numberOfLines={1}>{diet ? `${recipe.cuisine}  ·  ${diet}` : recipe.cuisine}</Text>
+      {recipe.tagline || recipe.description ? <Text style={styles.description} numberOfLines={1}>{recipe.tagline || recipe.description}</Text> : null}
+      <View style={styles.metricsRow}>
+        {formatCookTime(recipe.cookTime || recipe.totalTime) ? (
+          <View style={styles.metricItem}><Clock size={14} color={COLORS.textMuted} /><Text style={styles.metricValue}>{formatCookTime(recipe.cookTime || recipe.totalTime)}</Text></View>
+        ) : null}
+        {formatCalories(recipe.calories) ? (
+          <View style={styles.metricItem}><Flame size={14} color={COLORS.primary} /><Text style={styles.metricValue}>{formatCalories(recipe.calories)}</Text></View>
+        ) : null}
+        {recipe.servings ? (
+          <View style={styles.metricItem}><Users size={14} color={COLORS.textMuted} /><Text style={styles.metricValue}>{recipe.servings} servings</Text></View>
+        ) : null}
+      </View>
+      {onWatchVideo ? <Pressable style={styles.watchVideoBtn} onPress={onWatchVideo}><Text style={styles.watchVideoText}>View Recipe & Videos</Text></Pressable> : null}
+    </View>
+  </View>;
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: SPACING.md,
-  },
-  imageWrapper: {
-    width: '100%',
-    height: 380,
-    position: 'relative',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  gradientOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-  },
-  topBar: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  cuisineTag: {
-    backgroundColor: 'rgba(23, 23, 23, 0.75)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: RADIUS.full,
-  },
-  cuisineText: {
-    color: COLORS.textInverted,
-    fontSize: TYPOGRAPHY.sizes.caption,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  topRightActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  circleBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  floatingCard: {
-    position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-  },
-  titleRow: {
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: TYPOGRAPHY.sizes.h2,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    fontFamily: TYPOGRAPHY.fontSerif,
-    color: COLORS.textPrimary,
-    lineHeight: 26,
-  },
-  description: {
-    fontSize: TYPOGRAPHY.sizes.subtext,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
-    marginBottom: SPACING.sm,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: SPACING.xs,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: COLORS.borderSubtle,
-    marginBottom: SPACING.md,
-  },
-  metricItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metricValue: {
-    fontSize: TYPOGRAPHY.sizes.caption,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.textPrimary,
-  },
-  metricDivider: {
-    width: 1,
-    height: 12,
-    backgroundColor: COLORS.border,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  startCookingBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    borderRadius: RADIUS.md,
-    gap: 6,
-  },
-  startCookingBtnPressed: {
-    backgroundColor: COLORS.primaryDark,
-  },
-  startCookingText: {
-    color: COLORS.textInverted,
-    fontSize: TYPOGRAPHY.sizes.body,
-    fontWeight: TYPOGRAPHY.weights.bold,
-  },
-  watchVideoBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  watchVideoBtnPressed: {
-    backgroundColor: COLORS.surfaceHover,
-  },
-  watchVideoText: {
-    color: COLORS.textPrimary,
-    fontSize: TYPOGRAPHY.sizes.subtext,
-    fontWeight: TYPOGRAPHY.weights.bold,
-  },
+  container: { marginHorizontal: SPACING.md, marginBottom: SPACING.lg }, containerDesktop: { marginHorizontal: SPACING.lg },
+  imageWrapper: { height: 286, borderRadius: RADIUS.lg, overflow: 'hidden', position: 'relative', backgroundColor: COLORS.surface }, imageWrapperDesktop: { height: 420, borderRadius: RADIUS.xl }, heroImage: { width: '100%', height: '100%' },
+  topBar: { position: 'absolute', top: 14, left: 14, right: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, cuisineTag: { backgroundColor: 'rgba(23, 23, 23, 0.82)', paddingHorizontal: 9, paddingVertical: 5, borderRadius: RADIUS.sm }, cuisineText: { color: COLORS.textInverted, fontSize: TYPOGRAPHY.sizes.caption, fontWeight: TYPOGRAPHY.weights.semibold },
+  topRightActions: { flexDirection: 'row', gap: 8 }, iconButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center' },
+  infoPanel: { marginTop: -24, marginHorizontal: 10, backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border, elevation: 1 }, infoPanelDesktop: { width: '68%', maxWidth: 800, marginTop: -46, marginLeft: SPACING.lg, padding: SPACING.lg },
+  title: { fontSize: 24, lineHeight: 30, fontWeight: TYPOGRAPHY.weights.bold, color: COLORS.textPrimary, letterSpacing: -0.35 }, titleDesktop: { fontSize: 34, lineHeight: 40 }, categoryLine: { marginTop: 4, fontSize: TYPOGRAPHY.sizes.subtext, fontWeight: TYPOGRAPHY.weights.medium, color: COLORS.textSecondary }, description: { marginTop: 8, fontSize: TYPOGRAPHY.sizes.body, lineHeight: 20, color: COLORS.textSecondary },
+  metricsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 14 }, metricItem: { flexDirection: 'row', alignItems: 'center', gap: 5 }, metricValue: { fontSize: TYPOGRAPHY.sizes.caption, color: COLORS.textSecondary, fontWeight: TYPOGRAPHY.weights.semibold },
+  watchVideoBtn: { alignSelf: 'flex-start', marginTop: SPACING.md, height: 44, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.card }, watchVideoText: { color: COLORS.textPrimary, fontSize: TYPOGRAPHY.sizes.body, fontWeight: TYPOGRAPHY.weights.semibold },
 });

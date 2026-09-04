@@ -68,11 +68,15 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = ({
           {recipe.title || recipe.name}
         </Text>
         <View style={styles.metaRow}>
-          <Clock size={11} color={COLORS.textMuted} />
-          <Text style={styles.metaText}>
-            {formatCookTime(recipe.cookTime || recipe.totalTime)}
-          </Text>
-          <Text style={styles.metaDivider}>•</Text>
+          {formatCookTime(recipe.cookTime || recipe.totalTime) ? (
+            <>
+              <Clock size={11} color={COLORS.textMuted} />
+              <Text style={styles.metaText}>
+                {formatCookTime(recipe.cookTime || recipe.totalTime)}
+              </Text>
+              <Text style={styles.metaDivider}>•</Text>
+            </>
+          ) : null}
           <Text style={styles.metaText} numberOfLines={1}>
             {recipe.cuisine}
           </Text>

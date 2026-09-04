@@ -7,10 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "savour",
     "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#FAF8F5",
-      "resizeMode": "contain"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.savour.cookmate"

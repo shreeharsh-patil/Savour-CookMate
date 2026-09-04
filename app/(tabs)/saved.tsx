@@ -72,8 +72,10 @@ export default function SavedScreen() {
 
       // 2. Collection filter
       if (activeCollection === 'All Saved') return true;
-      if (activeCollection === 'Quick Meals')
-        return (r.cookTime || r.totalTime) <= 25;
+      if (activeCollection === 'Quick Meals') {
+        const minutes = r.cookTime ?? r.totalTime;
+        return minutes != null && minutes <= 25;
+      }
       if (activeCollection === 'Breakfast')
         return (r.mealType || '').toLowerCase().includes('breakfast');
       if (activeCollection === 'Healthy')

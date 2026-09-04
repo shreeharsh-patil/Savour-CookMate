@@ -1,5 +1,5 @@
 /**
- * Savour CookMate - Design System & Theme
+ * Yummy Tummy - Design System & Theme
  * 8pt spacing grid, warm appetizing coral/orange palette, editorial typography.
  */
 
@@ -62,9 +62,9 @@ export const SPACING = {
 export const RADIUS = {
   xs: 4,
   sm: 8,
-  md: 14,
-  lg: 20,
-  xl: 28,
+  md: 12,
+  lg: 16,
+  xl: 24,
   full: 9999,
 };
 
@@ -93,24 +93,15 @@ export const TYPOGRAPHY = {
 
 export const SHADOWS = {
   card: {
-    shadowColor: '#171717',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    boxShadow: '0px 2px 8px rgba(23, 23, 23, 0.05)',
     elevation: 2,
   },
   cardHover: {
-    shadowColor: '#171717',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
+    boxShadow: '0px 6px 16px rgba(23, 23, 23, 0.08)',
     elevation: 4,
   },
   accent: {
-    shadowColor: '#FF5A3C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    boxShadow: '0px 4px 10px rgba(255, 90, 60, 0.25)',
     elevation: 4,
   },
 };

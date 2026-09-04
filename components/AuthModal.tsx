@@ -6,9 +6,9 @@ import {
   Modal,
   Pressable,
   TextInput,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Mail, Lock, User, ShieldCheck } from 'lucide-react-native';
 import { useAppStore } from '../store/useAppStore';
 import { BRAND } from '../constants/brand';
@@ -91,7 +91,7 @@ export const AuthModal: React.FC = () => {
             <Text style={styles.subtitle}>
               {mode === 'signin'
                 ? 'Sign in to sync your recipes, pantry & preferences'
-                : 'Create your account to start cooking'}
+                : 'Create your account to save recipes and preferences'}
             </Text>
 
             {/* Google Authentication Button */}

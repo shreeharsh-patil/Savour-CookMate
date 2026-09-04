@@ -1,5 +1,5 @@
 /**
- * Savour CookMate - Client Analytics Service
+ * Yummy Tummy - Client Analytics Service
  * Production telemetry & product interaction event logger.
  * Safe, asynchronous, non-blocking with zero latency impact.
  */
@@ -14,8 +14,6 @@ export type AnalyticsEventType =
   | 'recommendation_view'
   | 'recommendation_open'
   | 'search'
-  | 'cooking_start'
-  | 'cooking_step_complete'
   | 'cooking_complete'
   | 'shopping_add'
   | 'youtube_open';
@@ -30,8 +28,6 @@ export interface AnalyticsPayloads {
   recommendation_view: { recommendationsCount: number; algorithm?: string };
   recommendation_open: { recipeId: string; rank?: number; matchReason?: string };
   search: { query: string; resultsCount?: number; filterCuisine?: string; filterDiet?: string };
-  cooking_start: { recipeId: string; recipeTitle: string; totalSteps: number };
-  cooking_step_complete: { recipeId: string; stepIndex: number; totalSteps: number };
   cooking_complete: { recipeId: string; totalSteps: number; durationSeconds?: number; rating?: number };
   shopping_add: { ingredientName: string; category?: string };
   youtube_open: { videoId: string; videoTitle?: string; recipeId?: string };
@@ -107,14 +103,6 @@ class AnalyticsService {
 
   public trackSearch(query: string, resultsCount?: number, filterCuisine?: string, filterDiet?: string) {
     this.track('search', { query, resultsCount, filterCuisine, filterDiet });
-  }
-
-  public trackCookingStart(recipeId: string, recipeTitle: string, totalSteps: number) {
-    this.track('cooking_start', { recipeId, recipeTitle, totalSteps });
-  }
-
-  public trackCookingStepComplete(recipeId: string, stepIndex: number, totalSteps: number) {
-    this.track('cooking_step_complete', { recipeId, stepIndex, totalSteps });
   }
 
   public trackCookingComplete(recipeId: string, totalSteps: number, durationSeconds?: number, rating?: number) {

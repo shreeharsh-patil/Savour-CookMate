@@ -11,7 +11,7 @@ import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { RecipeSourceVideoProvider } from "./providers/recipe-source.provider";
 import { YouTubeDataVideoProvider } from "./providers/youtube-data.provider";
 import { InvidiousVideoProvider } from "./providers/invidious.provider";
-import { rankAndFilterVideos } from "./providers/ranking.utils";
+import { getDishAliases, rankAndFilterVideos, RANKING_VERSION } from "./providers/ranking.utils";
 import { VideoMetadata, VideoSearchOptions } from "./providers/video-provider.interface";
 
 @Injectable()
@@ -37,7 +37,7 @@ export class YouTubeService {
     const sortedLangs = [...languages].map((l) => l.trim().toLowerCase()).sort().join(",");
     return crypto
       .createHash("sha256")
-      .update(`${dish.trim().toLowerCase()}|${sortedLangs}|${filter.toLowerCase()}`)
+      .update(`${RANKING_VERSION}|${dish.trim().toLowerCase()}|${sortedLangs}|${filter.toLowerCase()}`)
       .digest("hex");
   }
 
@@ -106,9 +106,17 @@ export class YouTubeService {
           .lean();
 
         if (recipeDoc) {
-          exactRecipeVideo = await this.recipeSourceProvider.resolveFromRecipe(
+          const linkedVideo = await this.recipeSourceProvider.resolveFromRecipe(
             recipeDoc
           );
+          if (linkedVideo) {
+            // A linked URL is only shown after a live provider/oEmbed check.
+            // Removed/private videos deliberately fall through to normal search.
+            exactRecipeVideo = await this.youtubeDataProvider.getVideoMetadata(linkedVideo.id)
+              || await this.invidiousProvider.getVideoMetadata(linkedVideo.id)
+              || await this.recipeSourceProvider.getVideoMetadata(linkedVideo.id);
+            if (exactRecipeVideo) exactRecipeVideo.relevanceScore = 100;
+          }
         }
       } catch (err: any) {
         this.logger.debug(`Recipe lookup for video skipped: ${err.message}`);
@@ -129,14 +137,28 @@ export class YouTubeService {
     try {
       const cached = await this.cacheModel.findOne({ cacheKey }).lean();
       if (cached && cached.expiresAt > new Date() && cached.videos?.length > 0) {
+        // Cache expiry alone cannot detect a later deletion/private change on
+        // YouTube. Verify each cached ID before returning it to the client.
+        const availability = await Promise.all(
+          cached.videos.map(async (video) => ({
+            id: video.id,
+            available: Boolean(await this.recipeSourceProvider.getVideoMetadata(video.id)),
+          }))
+        );
+        const availableIds = new Set(availability.filter((item) => item.available).map((item) => item.id));
+        const availableVideos = cached.videos.filter((video) => availableIds.has(video.id));
+        if (availableVideos.length === 0) {
+          this.logger.debug(`Discarded stale YouTube cache for ${dishName}: no videos remain available`);
+        } else {
         // If we also had an exact recipe tutorial, prepend it if not already present
         if (
           exactRecipeVideo &&
-          !cached.videos.some((v) => v.id === exactRecipeVideo!.id)
+          !availableVideos.some((v) => v.id === exactRecipeVideo!.id)
         ) {
-          return [this.toCacheItem(exactRecipeVideo), ...cached.videos];
+          return [this.toCacheItem(exactRecipeVideo), ...availableVideos];
         }
-        return cached.videos;
+        return availableVideos;
+        }
       }
     } catch (err: any) {
       this.logger.warn(`Cache read error: ${err.message}`);
@@ -156,13 +178,21 @@ export class YouTubeService {
     let searchResults: VideoMetadata[] = [];
 
     if (this.youtubeDataProvider.isConfigured()) {
-      try {
-        searchResults = await this.youtubeDataProvider.searchVideos(
-          dishName,
-          searchOptions
-        );
-      } catch (err: any) {
-        this.logger.warn(`YouTube Data API failed: ${err.message}`);
+      const queries = Array.from(new Set([dishName, ...getDishAliases(dishName).slice(1), `${dishName} cooking`]));
+      searchLoop: for (const query of queries) {
+        for (const language of languages) {
+        try {
+          const results = await this.youtubeDataProvider.searchVideos(query, {
+            ...searchOptions,
+            languages: [language],
+          });
+          searchResults.push(...results);
+          // Do not consume quota on secondary languages after three strong matches.
+          if (rankAndFilterVideos(searchResults, searchOptions, 60).length >= 3) break searchLoop;
+        } catch (err: any) {
+          this.logger.warn(`YouTube Data API failed: ${err.message}`);
+        }
+        }
       }
     }
 
@@ -180,7 +210,7 @@ export class YouTubeService {
       }
     }
 
-    // Filter & rank candidates deterministically with a minimum threshold of 60
+    // Validation rejects weak dish matches before relevance-first ranking.
     let ranked = rankAndFilterVideos(searchResults, searchOptions, 60);
 
     // If an exact recipe video exists, always put it first
@@ -192,7 +222,7 @@ export class YouTubeService {
     }
 
     // Convert to persistence schema
-    const finalVideos: YouTubeVideoItem[] = ranked.slice(0, 4).map((v) =>
+    const finalVideos: YouTubeVideoItem[] = ranked.slice(0, 3).map((v) =>
       this.toCacheItem(v)
     );
 
@@ -211,8 +241,9 @@ export class YouTubeService {
             cacheKey,
             recipeId,
             recipeName: dishName,
-            language: languages[0] || "English",
+            language: finalVideos[0]?.language || "",
             filter,
+            rankingVersion: RANKING_VERSION,
             provider: finalVideos[0]?.provider || "youtube",
             videos: finalVideos,
             fetchedAt: new Date(),
@@ -244,6 +275,7 @@ export class YouTubeService {
       views: v.views || "",
       viewCount: v.viewCount || 0,
       language: v.language || "",
+      matchType: v.matchType || (v.relevanceScore >= 75 ? "recommended" : "related"),
       provider: v.provider || "youtube",
       score: v.relevanceScore || 0,
       relevanceScore: v.relevanceScore || 0,

@@ -41,6 +41,9 @@ export class YouTubeVideoItem {
   @Prop({ type: String, default: "" })
   language?: string;
 
+  @Prop({ type: String, enum: ["recommended", "related"] })
+  matchType?: string;
+
   @Prop({ type: String, default: "youtube" })
   provider?: string;
 
@@ -67,8 +70,11 @@ export class YouTubeCache {
   @Prop({ type: String, default: "youtube" })
   provider?: string;
 
-  @Prop({ type: String, default: "English" })
+  @Prop({ type: String, default: "" })
   language: string;
+
+  @Prop({ type: String, default: "v2" })
+  rankingVersion?: string;
 
   @Prop({ type: String, default: "recommended" })
   filter?: string;

@@ -44,7 +44,7 @@ export const WHAT_ON_YOUR_MIND: FoodCategory[] = [
     id: 'pasta',
     name: 'Pasta',
     subtitle: 'Artisanal Italian',
-    imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281292?auto=format&fit=crop&w=400&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=400&q=85',
     query: 'authentic italian pasta al dente sauces',
   },
   {

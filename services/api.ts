@@ -93,7 +93,7 @@ export const api = {
   // Pantry
   pantry: {
     getItems: () => apiClient<{ allItems: any[]; sections: any; counts: any }>("/api/v1/pantry"),
-    addItem: (item: { name: string; quantity?: string; unit?: string; expiryDate?: string; lowStock?: boolean }) =>
+    addItem: (item: { name: string; quantity?: string; unit?: string; expiryDate?: string; category?: string; lowStock?: boolean }) =>
       apiClient<any>("/api/v1/pantry", {
         method: "POST",
         body: JSON.stringify(item),

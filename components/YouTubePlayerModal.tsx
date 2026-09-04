@@ -5,8 +5,8 @@ import {
   StyleSheet,
   Modal,
   Pressable,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Play, ExternalLink } from 'lucide-react-native';
 import { useAppStore } from '../store/useAppStore';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
