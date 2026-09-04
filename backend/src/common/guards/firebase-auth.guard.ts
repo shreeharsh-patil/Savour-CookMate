@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as path from "path";
 import {
   CanActivate,
   ExecutionContext,
@@ -17,22 +19,50 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 let isFirebaseInitialized = false;
 
 function initFirebaseAdmin() {
-  if (!isFirebaseInitialized && ENV.FIREBASE_PROJECT_ID && ENV.FIREBASE_CLIENT_EMAIL && ENV.FIREBASE_PRIVATE_KEY) {
-    try {
-      if (getApps().length === 0) {
-        initializeApp({
-          credential: cert({
-            projectId: ENV.FIREBASE_PROJECT_ID,
-            clientEmail: ENV.FIREBASE_CLIENT_EMAIL,
-            privateKey: ENV.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-          }),
+  if (isFirebaseInitialized) return;
+  try {
+    if (getApps().length === 0) {
+      // 1. Check for serviceAccountKey.json in common directories
+      const possibleKeyPaths = [
+        path.resolve(process.cwd(), "serviceAccountKey.json"),
+        path.resolve(process.cwd(), "backend", "serviceAccountKey.json"),
+        path.resolve(__dirname, "..", "..", "..", "serviceAccountKey.json"),
+        path.resolve(__dirname, "..", "..", "serviceAccountKey.json"),
+      ];
+
+      let credentialObj: any = null;
+      for (const p of possibleKeyPaths) {
+        if (fs.existsSync(p)) {
+          try {
+            const raw = fs.readFileSync(p, "utf-8");
+            const parsed = JSON.parse(raw);
+            if (parsed.project_id && parsed.private_key) {
+              credentialObj = cert(parsed);
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      // 2. Fall back to environment variables
+      if (!credentialObj && ENV.FIREBASE_PROJECT_ID && ENV.FIREBASE_CLIENT_EMAIL && ENV.FIREBASE_PRIVATE_KEY) {
+        credentialObj = cert({
+          projectId: ENV.FIREBASE_PROJECT_ID,
+          clientEmail: ENV.FIREBASE_CLIENT_EMAIL,
+          privateKey: ENV.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
         });
       }
+
+      if (credentialObj) {
+        initializeApp({ credential: credentialObj });
+        isFirebaseInitialized = true;
+        console.log("Firebase Admin SDK initialized successfully.");
+      }
+    } else {
       isFirebaseInitialized = true;
-      console.log("Firebase Admin SDK initialized successfully.");
-    } catch (err) {
-      console.warn("Firebase Admin init warning:", err);
     }
+  } catch (err) {
+    console.warn("Firebase Admin init warning:", err);
   }
 }
 
