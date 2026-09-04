@@ -4,9 +4,9 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, SlidersHorizontal, Clock, RefreshCw } from 'lucide-react-native';
 import { useAppStore } from '../../store/useAppStore';
 import { RecipeSearch } from '../../components/RecipeSearch';

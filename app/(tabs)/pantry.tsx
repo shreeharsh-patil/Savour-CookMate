@@ -4,11 +4,11 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   Pressable,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Plus,
   Trash2,
@@ -93,7 +93,7 @@ export default function PantryScreen() {
   const [inputMode, setInputMode] = useState<'quick' | 'natural'>('quick');
   const [isExtracting, setIsExtracting] = useState(false);
   const [lastRemovedItem, setLastRemovedItem] = useState<PantryItem | null>(null);
-  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadPantryItems();
