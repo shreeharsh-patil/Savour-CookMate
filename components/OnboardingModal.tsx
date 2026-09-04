@@ -28,18 +28,18 @@ export const OnboardingModal: React.FC = () => {
     (state) => state.updateUserPreferences
   );
 
-  const [diet, setDiet] = useState<DietType>(userPreferences.diet);
+  const [diet, setDiet] = useState<DietType>(userPreferences.diet as DietType);
   const [skillLevel, setSkillLevel] = useState<CookingLevelType>(
-    userPreferences.skillLevel
+    (userPreferences.skillLevel || 'Beginner') as CookingLevelType
   );
   const [spiceTolerance, setSpiceTolerance] = useState<SpiceLevelType>(
-    userPreferences.spiceTolerance
+    (userPreferences.spiceTolerance || 'Medium') as SpiceLevelType
   );
   const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>(
-    userPreferences.favoriteCuisines
+    userPreferences.favoriteCuisines || []
   );
   const [videoLanguages, setVideoLanguages] = useState<VideoLanguageType[]>(
-    userPreferences.videoLanguages
+    (userPreferences.videoLanguages || ['English']) as VideoLanguageType[]
   );
 
   if (!isOnboardingOpen) return null;

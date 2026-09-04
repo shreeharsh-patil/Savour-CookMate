@@ -5,16 +5,16 @@ import { useAppStore } from '../store/useAppStore';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 export const Toast: React.FC = () => {
-  const toastMessage = useAppStore((state) => state.toastMessage);
+  const toast = useAppStore((state) => state.toast);
 
-  if (!toastMessage) return null;
+  if (!toast?.message) return null;
 
   return (
     <View style={styles.wrapper} pointerEvents="none">
       <SafeAreaView>
         <View style={[styles.container, SHADOWS.accent]}>
           <CheckCircle size={15} color={COLORS.textInverted} style={styles.icon} />
-          <Text style={styles.text}>{toastMessage}</Text>
+          <Text style={styles.text}>{toast.message}</Text>
         </View>
       </SafeAreaView>
     </View>
@@ -33,18 +33,19 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1C1917',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     borderRadius: RADIUS.full,
-    maxWidth: '90%',
+    gap: SPACING.sm,
   },
   icon: {
-    marginRight: 8,
+    marginRight: 2,
   },
   text: {
+    fontSize: TYPOGRAPHY.sizes.subtext,
+    fontFamily: TYPOGRAPHY.fontSans,
     color: COLORS.textInverted,
-    fontSize: TYPOGRAPHY.sizes.caption,
-    fontWeight: TYPOGRAPHY.weights.semibold,
+    fontWeight: '600',
   },
 });

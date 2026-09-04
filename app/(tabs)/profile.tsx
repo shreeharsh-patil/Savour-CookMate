@@ -44,18 +44,18 @@ export default function ProfileScreen() {
   const signOut = useAppStore((state) => state.signOut);
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
 
-  const [diet, setDiet] = useState<DietType>(userPreferences.diet);
+  const [diet, setDiet] = useState<DietType>(userPreferences.diet as DietType);
   const [skillLevel, setSkillLevel] = useState<CookingLevelType>(
-    userPreferences.skillLevel
+    (userPreferences.skillLevel || 'Beginner') as CookingLevelType
   );
   const [spiceTolerance, setSpiceTolerance] = useState<SpiceLevelType>(
-    userPreferences.spiceTolerance
+    (userPreferences.spiceTolerance || 'Medium') as SpiceLevelType
   );
   const [favoriteCuisines, setFavoriteCuisines] = useState<string[]>(
-    userPreferences.favoriteCuisines
+    userPreferences.favoriteCuisines || []
   );
   const [videoLanguages, setVideoLanguages] = useState<VideoLanguageType[]>(
-    userPreferences.videoLanguages
+    (userPreferences.videoLanguages || ['English']) as VideoLanguageType[]
   );
 
   const isGuest = !currentUser || currentUser.isGuest;
@@ -125,7 +125,7 @@ export default function ProfileScreen() {
               source={{
                 uri:
                   currentUser?.avatarUrl ||
-                  userProfile.avatarUrl ||
+                  userProfile?.avatarUrl ||
                   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
               }}
               style={styles.avatar}
@@ -135,7 +135,7 @@ export default function ProfileScreen() {
             <View style={styles.userInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.userName} numberOfLines={1}>
-                  {currentUser?.name || userProfile.name}
+                  {currentUser?.name || userProfile?.name || 'Home Cook'}
                 </Text>
                 {isGuest ? (
                   <View style={styles.guestBadge}>
@@ -150,7 +150,7 @@ export default function ProfileScreen() {
               </View>
 
               <Text style={styles.userEmail} numberOfLines={1}>
-                {currentUser?.email || userProfile.email}
+                {currentUser?.email || userProfile?.email || 'Guest Chef'}
               </Text>
 
               {/* User-Oriented Sync Status */}
@@ -229,7 +229,7 @@ export default function ProfileScreen() {
                 <Pressable
                   key={item.id}
                   style={styles.historyItem}
-                  onPress={() => setSelectedRecipe(item.recipeData)}
+                  onPress={() => item.recipeData && setSelectedRecipe(item.recipeData)}
                 >
                   <View style={styles.historyItemLeft}>
                     <Text style={styles.historyDishName} numberOfLines={1}>
