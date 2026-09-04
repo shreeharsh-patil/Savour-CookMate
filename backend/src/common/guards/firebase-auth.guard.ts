@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
   SetMetadata,
+  Optional,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { initializeApp, cert, getApps } from "firebase-admin/app";
@@ -47,7 +48,11 @@ export interface AuthenticatedUser {
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  private reflector: Reflector;
+
+  constructor(@Optional() reflector?: Reflector) {
+    this.reflector = reflector || new Reflector();
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [

@@ -5,64 +5,66 @@ export type YouTubeCacheDocument = HydratedDocument<YouTubeCache>;
 
 @Schema({ _id: false })
 export class YouTubeVideoItem {
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   id: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   title: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   channelTitle: string;
 
-  @Prop({ default: "" })
+  @Prop({ type: String, default: "" })
   description: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   thumbnailUrl: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   videoUrl: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   embedUrl: string;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   duration: string;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   durationSeconds: number;
 
-  @Prop({ default: "" })
+  @Prop({ type: String, default: "" })
   views: string;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   viewCount: number;
 
-  @Prop({ default: "English" })
+  @Prop({ type: String, default: "English" })
   language: string;
 
-  @Prop({ default: 0 })
+  @Prop({ type: Number, default: 0 })
   score: number;
 }
 
+export const YouTubeVideoItemSchema = SchemaFactory.createForClass(YouTubeVideoItem);
+
 @Schema({ timestamps: true })
 export class YouTubeCache {
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ type: String, required: true, unique: true, index: true })
   cacheKey: string;
 
-  @Prop({ index: true })
+  @Prop({ type: String, index: true })
   recipeId?: string;
 
-  @Prop({ default: "English" })
+  @Prop({ type: String, default: "English" })
   language: string;
 
-  @Prop({ type: [YouTubeVideoItem], default: [] })
+  @Prop({ type: [YouTubeVideoItemSchema], default: [] })
   videos: YouTubeVideoItem[];
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   fetchedAt: Date;
 
-  @Prop({ required: true, index: { expires: 0 } })
+  @Prop({ type: Date, required: true, index: { expires: 0 } })
   expiresAt: Date;
 }
 

@@ -5,19 +5,19 @@ export type UserDocument = HydratedDocument<User>;
 
 @Schema({ timestamps: true })
 export class User {
-  @Prop({ required: true, unique: true, index: true })
+  @Prop({ type: String, required: true, unique: true, index: true })
   firebaseUid: string;
 
-  @Prop({ index: true })
+  @Prop({ type: String, index: true })
   email?: string;
 
-  @Prop()
+  @Prop({ type: String })
   displayName?: string;
 
-  @Prop()
+  @Prop({ type: String })
   avatar?: string;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isGuest: boolean;
 }
 
