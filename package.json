@@ -7,8 +7,9 @@
   "scripts": {
     "start": "expo start",
     "mobile": "expo start",
-    "server": "tsx backend/src/main.ts",
-    "backend": "tsx backend/src/main.ts",
+    "build:backend": "tsc -p backend/tsconfig.json",
+    "server": "npm run build:backend && node backend/dist/main.js",
+    "backend": "npm run build:backend && node backend/dist/main.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "tsc --noEmit && tsc -p backend/tsconfig.json --noEmit",
