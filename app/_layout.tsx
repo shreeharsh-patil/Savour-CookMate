@@ -28,6 +28,7 @@ export default function RootLayout() {
   const loadAuthUser = useAppStore((state) => state.loadAuthUser);
   const selectedRecipe = useAppStore((state) => state.selectedRecipe);
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
+  const isCookingMode = useAppStore((state) => state.isCookingMode);
 
   useEffect(() => {
     loadAuthUser();
@@ -45,7 +46,7 @@ export default function RootLayout() {
           {/* Global Overlays & Modals */}
           <Toast />
           <RecipeDetailModal
-            visible={Boolean(selectedRecipe)}
+            visible={Boolean(selectedRecipe) && !isCookingMode}
             recipe={selectedRecipe}
             onClose={() => setSelectedRecipe(null)}
           />

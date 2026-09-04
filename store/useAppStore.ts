@@ -99,6 +99,11 @@ interface AppState {
   unsaveRecipe: (recipeId: string) => Promise<void>;
   isRecipeSaved: (recipeId: string) => boolean;
 
+  // Recently Viewed Recipes
+  recentlyViewedRecipes: Recipe[];
+  loadRecentlyViewed: () => Promise<void>;
+  addRecentlyViewed: (recipe: Recipe) => void;
+
   // Shopping List
   shoppingList: ShoppingListItem[];
   isShoppingListLoading: boolean;
@@ -124,7 +129,7 @@ interface AppState {
   startCookingMode: (recipe: Recipe) => void;
   exitCookingMode: () => void;
   setCookingStepIndex: (idx: number) => void;
-  setCookingTimerSeconds: (seconds: number) => void;
+  setCookingTimerSeconds: (seconds: number | ((prev: number) => number)) => void;
   setIsTimerRunning: (running: boolean) => void;
 
   // Modals & Feedback
@@ -153,6 +158,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 };
 
 const COOKING_STORAGE_KEY = "@savour_active_cooking_session";
+const RECENTLY_VIEWED_KEY = "@savour_recently_viewed";
 
 export const useAppStore = create<AppState>((set, get) => ({
   // Auth & Profile
@@ -176,7 +182,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
       }
 
-      // 2. Fetch authenticated profile from MongoDB
+      // 2. Restore recently viewed recipes
+      const savedRecent = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
+      if (savedRecent) {
+        try {
+          const parsed = JSON.parse(savedRecent);
+          if (Array.isArray(parsed)) {
+            set({ recentlyViewedRecipes: parsed });
+          }
+        } catch {}
+      }
+
+      // 3. Fetch authenticated profile from MongoDB
       const token = await getStoredToken();
       if (token) {
         const res = await api.auth.getMe();
@@ -623,6 +640,31 @@ export const useAppStore = create<AppState>((set, get) => ({
     return get().savedRecipes.some((r) => r.id === recipeId);
   },
 
+  // Recently Viewed Recipes
+  recentlyViewedRecipes: [],
+
+  loadRecentlyViewed: async () => {
+    try {
+      const stored = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          set({ recentlyViewedRecipes: parsed });
+        }
+      }
+    } catch {}
+  },
+
+  addRecentlyViewed: (recipe: Recipe) => {
+    if (!recipe || !recipe.id) return;
+    set((state) => {
+      const filtered = state.recentlyViewedRecipes.filter((r) => r.id !== recipe.id);
+      const updated = [recipe, ...filtered].slice(0, 10);
+      AsyncStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(updated)).catch(() => {});
+      return { recentlyViewedRecipes: updated };
+    });
+  },
+
   // Shopping List
   shoppingList: [],
   isShoppingListLoading: false,
@@ -734,7 +776,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   cookingTimerSeconds: 0,
   isTimerRunning: false,
 
-  setSelectedRecipe: (recipe) => set({ selectedRecipe: recipe }),
+  setSelectedRecipe: (recipe) => {
+    set({ selectedRecipe: recipe });
+    if (recipe) {
+      get().addRecentlyViewed(recipe);
+    }
+  },
 
   startCookingMode: (recipe: Recipe) => {
     const session = {
@@ -773,7 +820,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     ).catch(() => {});
   },
 
-  setCookingTimerSeconds: (seconds: number) => set({ cookingTimerSeconds: seconds }),
+  setCookingTimerSeconds: (seconds: number | ((prev: number) => number)) =>
+    set((state) => ({
+      cookingTimerSeconds:
+        typeof seconds === "function" ? seconds(state.cookingTimerSeconds) : seconds,
+    })),
   setIsTimerRunning: (running: boolean) => set({ isTimerRunning: running }),
 
   // Modals & Feedback

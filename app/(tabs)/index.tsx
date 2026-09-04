@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Flame,
   Zap,
+  Clock,
 } from 'lucide-react-native';
 import { useAppStore } from '../../store/useAppStore';
 import { HomeHeader } from '../../components/HomeHeader';
@@ -54,6 +55,10 @@ export default function HomeScreen() {
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
   const pantryCount = useAppStore((state) => state.pantryItems.length);
   const setAuthModalOpen = useAppStore((state) => state.setAuthModalOpen);
+  const recentlyViewedRecipes = useAppStore((state) => state.recentlyViewedRecipes);
+  const isCookingMode = useAppStore((state) => state.isCookingMode);
+  const selectedRecipe = useAppStore((state) => state.selectedRecipe);
+  const cookingStepIndex = useAppStore((state) => state.cookingStepIndex);
 
   useEffect(() => {
     if (homeRecipes.length === 0) {
@@ -177,6 +182,32 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
+        {/* Active / Resume Cooking Session Card */}
+        {isCookingMode && selectedRecipe ? (
+          <View style={styles.paddedContainer}>
+            <Pressable
+              style={styles.resumeSessionCard}
+              onPress={() => {}}
+              accessibilityRole="button"
+              accessibilityLabel={`Resume cooking ${selectedRecipe.title || selectedRecipe.name}`}
+            >
+              <View style={styles.resumeIconWrap}>
+                <Flame size={18} color={COLORS.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.resumePretitle}>ACTIVE COOKING SESSION</Text>
+                <Text style={styles.resumeTitle} numberOfLines={1}>
+                  {selectedRecipe.title || selectedRecipe.name}
+                </Text>
+                <Text style={styles.resumeSubtitle}>
+                  Step {cookingStepIndex + 1} of {selectedRecipe.steps?.length || 1} in progress • Tap to continue
+                </Text>
+              </View>
+              <ArrowRight size={18} color={COLORS.primary} />
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* 5. Spotlight Recommendation Hero */}
         {featuredRecipe && !isHomeLoading ? (
           <View style={styles.heroContainer}>
@@ -237,6 +268,31 @@ export default function HomeScreen() {
             >
               {quickMeals.map((recipe) => (
                 <CompactRecipeCard key={recipe.id} recipe={recipe} />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {/* Recently Viewed Rail */}
+        {recentlyViewedRecipes.length > 0 ? (
+          <View style={styles.carouselSection}>
+            <View style={styles.sectionHeaderRow}>
+              <View>
+                <View style={styles.iconHeadingRow}>
+                  <Clock size={14} color={COLORS.primary} />
+                  <Text style={styles.sectionPretitle}>Pick Up Where You Left Off</Text>
+                </View>
+                <Text style={styles.sectionTitle}>Recently Viewed</Text>
+              </View>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalScrollList}
+            >
+              {recentlyViewedRecipes.map((recipe) => (
+                <CompactRecipeCard key={`recent-${recipe.id}`} recipe={recipe} />
               ))}
             </ScrollView>
           </View>
@@ -486,5 +542,40 @@ const styles = StyleSheet.create({
   },
   recipesList: {
     gap: SPACING.xs,
+  },
+  resumeSessionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${COLORS.primary}15`,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: `${COLORS.primary}50`,
+    gap: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  resumeIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${COLORS.primary}25`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resumePretitle: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+  },
+  resumeTitle: {
+    fontSize: TYPOGRAPHY.sizes.body,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textPrimary,
+  },
+  resumeSubtitle: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
 });
