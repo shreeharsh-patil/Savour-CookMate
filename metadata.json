@@ -1,6 +1,6 @@
 {
-  "name": "Savor — Live Culinary Companion",
-  "description": "A premium cooking application powered by live Gemini recipe discovery and YouTube cooking guides, featuring Pantry intelligence and saved collections.",
+  "name": "Savour CookMate",
+  "description": "An intelligent cooking companion that helps you discover recipes, cook with ingredients you already have, follow guided recipes and find useful cooking videos.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

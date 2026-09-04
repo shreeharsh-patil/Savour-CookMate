@@ -2,18 +2,19 @@ import express from "express";
 import path from "path";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import cors from "cors";
 import { GoogleGenAI, Type } from "@google/genai";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { createServer as createViteServer } from "vite";
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+app.use(cors());
 app.use(express.json());
 
-// Initialize Google GenAI client lazily or with graceful check
+// Initialize Google GenAI client lazily
 let genAIClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI {
   if (!genAIClient) {
@@ -25,7 +26,7 @@ function getGenAI(): GoogleGenAI {
       apiKey: apiKey || "",
       httpOptions: {
         headers: {
-          "User-Agent": "aistudio-build",
+          "User-Agent": "SavourCookMate/2.0",
         },
       },
     });
@@ -1311,23 +1312,8 @@ function getVerifiedCulinaryVideos(dishName: string, filter: string): any[] {
 }
 
 async function startServer() {
-  // Vite middleware in development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Culinary Companion Server running on http://localhost:${PORT}`);
+    console.log(`Savour CookMate API Server running on http://localhost:${PORT}`);
   });
 }
 
