@@ -726,10 +726,10 @@ const RecipeDetailModalContent: React.FC<{
                     ) : (
                       <>
                         <Text style={styles.emptyVideosTitle}>
-                          No matching tutorial found
+                          No suitable tutorial found
                         </Text>
                         <Text style={styles.emptyVideosSubtitle}>
-                          No videos passed our strict culinary relevance criteria. You can search directly on YouTube.
+                          We checked exact, related, and similar cooking tutorials. You can search directly on YouTube.
                         </Text>
                         <Pressable
                           style={styles.searchYoutubeBtn}

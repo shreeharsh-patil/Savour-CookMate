@@ -124,6 +124,12 @@ export class Recipe {
   @Prop({ type: [String], default: [] })
   instructions: string[];
 
+  @Prop({ type: Boolean, default: false, index: true })
+  isHydrated: boolean;
+
+  @Prop({ type: Date })
+  detailFetchedAt?: Date;
+
   @Prop({ type: RecipeNutritionSchema, default: () => ({ calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }) })
   nutrition: RecipeNutrition;
 
@@ -210,4 +216,3 @@ RecipeSchema.index({ status: 1, "ingredients.normalizedName": 1 });
 RecipeSchema.index({ status: 1, category: 1 });
 RecipeSchema.index({ status: 1, cuisine: 1 });
 RecipeSchema.index({ status: 1, dietaryTags: 1 });
-

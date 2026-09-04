@@ -12,6 +12,18 @@ interface VideoCardProps {
 }
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
+  const matchLabel = video.matchType === 'strong'
+    ? 'Strong Match'
+    : video.matchType === 'related'
+    ? 'Related Tutorial'
+    : video.matchType === 'similar'
+    ? 'Similar Recipe Tutorial'
+    : 'Recommended Tutorial';
+  const matchNote = video.matchType === 'similar'
+    ? 'Uses a similar preparation method and main ingredient.'
+    : video.matchType === 'related'
+    ? 'Closely related to this recipe.'
+    : null;
   const handlePress = () => {
     if (onPress) {
       onPress(video);
@@ -56,13 +68,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
       <View style={styles.content}>
         <View style={[
           styles.matchBadge,
-          video.matchType === 'related' ? styles.relatedBadge : styles.recommendedBadge,
+          video.matchType === 'related' || video.matchType === 'similar' ? styles.relatedBadge : styles.recommendedBadge,
         ]}>
           <Text style={[
             styles.matchBadgeText,
-            video.matchType === 'related' ? styles.relatedBadgeText : styles.recommendedBadgeText,
+            video.matchType === 'related' || video.matchType === 'similar' ? styles.relatedBadgeText : styles.recommendedBadgeText,
           ]}>
-            {video.matchType === 'related' ? 'Related tutorial' : 'Recommended tutorial'}
+            {matchLabel}
           </Text>
         </View>
         <Text style={styles.title} numberOfLines={2}>
@@ -80,8 +92,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
             </>
           ) : null}
         </View>
-        {video.matchType === 'related' ? (
-          <Text style={styles.relatedNote}>This tutorial is closely related to this dish.</Text>
+        {matchNote ? (
+          <Text style={styles.relatedNote}>{matchNote}</Text>
         ) : null}
       </View>
     </Pressable>

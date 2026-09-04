@@ -150,7 +150,7 @@ export interface YouTubeVideo {
   views?: string;
   viewCount?: number;
   language?: string;
-  matchType?: 'recommended' | 'related';
+  matchType?: 'recommended' | 'strong' | 'related' | 'similar';
   relevanceScore?: number;
   isQuick?: boolean;
   isDetailed?: boolean;

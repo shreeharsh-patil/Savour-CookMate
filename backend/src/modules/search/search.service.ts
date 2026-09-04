@@ -3,7 +3,6 @@ import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { SearchHistory, SearchHistoryDocument } from "../../database/schemas/search-history.schema";
-import { GeminiService } from "../gemini/gemini.service";
 import { RecipesService } from "../recipes/recipes.service";
 import { MealDbRecipeProvider } from "../recipes/providers/mealdb.provider";
 
@@ -25,7 +24,6 @@ export class SearchService {
   constructor(
     @InjectModel(Recipe.name) private recipeModel: Model<RecipeDocument>,
     @InjectModel(SearchHistory.name) private searchHistoryModel: Model<SearchHistoryDocument>,
-    private geminiService: GeminiService,
     private recipesService: RecipesService,
     private mealDbProvider: MealDbRecipeProvider
   ) {}
@@ -34,14 +32,7 @@ export class SearchService {
     const { query, page = 1, limit = 20 } = options;
     const cleanQuery = (query || "").trim();
 
-    // Determine if query is conversational or simple keyword
-    // Normal searches: "paneer", "butter chicken", "pasta", "biryani" -> NEVER CALL GEMINI
-    const words = cleanQuery.split(/\s+/);
-    const isConversational =
-      words.length >= 5 &&
-      /\b(i want|looking for|something like|can i make|under \d+|less than \d+|quick and easy)\b/i.test(cleanQuery);
-
-    let intent: any = {
+    const intent: any = {
       isConversational: false,
       cuisine: options.cuisine,
       mealType: options.mealType,
@@ -50,30 +41,22 @@ export class SearchService {
       ingredients: [],
     };
 
-    if (isConversational) {
-      try {
-        intent = await this.geminiService.parseSearchIntent(cleanQuery);
-      } catch {
-        // Safe deterministic fallback
-      }
-    }
-
     // Build MongoDB query
     const mongoQuery: any = { status: "published" };
 
     const targetCuisine = options.cuisine || intent.cuisine;
     if (targetCuisine && targetCuisine.toLowerCase() !== "all") {
-      mongoQuery.cuisine = { $regex: new RegExp(`^${targetCuisine}$`, "i") };
+      mongoQuery.cuisine = { $regex: new RegExp(`^${this.escapeRegex(targetCuisine)}$`, "i") };
     }
 
     const targetMealType = options.mealType || intent.mealType;
     if (targetMealType && targetMealType.toLowerCase() !== "all") {
-      mongoQuery.mealTypes = { $in: [new RegExp(targetMealType, "i")] };
+      mongoQuery.mealTypes = { $in: [new RegExp(this.escapeRegex(targetMealType), "i")] };
     }
 
     const targetDiet = options.diet || intent.diet;
     if (targetDiet && targetDiet.toLowerCase() !== "all") {
-      mongoQuery.dietaryTags = { $in: [new RegExp(targetDiet, "i")] };
+      mongoQuery.dietaryTags = { $in: [new RegExp(this.escapeRegex(targetDiet), "i")] };
     }
 
     const targetMaxTime = options.maxCookingTime || intent.maxCookingTime;
@@ -89,11 +72,11 @@ export class SearchService {
 
     if (cleanQuery) {
       mongoQuery.$or = [
-        { name: { $regex: cleanQuery, $options: "i" } },
-        { description: { $regex: cleanQuery, $options: "i" } },
-        { searchKeywords: { $in: [new RegExp(cleanQuery, "i")] } },
-        { cuisine: { $regex: cleanQuery, $options: "i" } },
-        { "ingredients.name": { $regex: cleanQuery, $options: "i" } },
+        { name: { $regex: this.escapeRegex(cleanQuery), $options: "i" } },
+        { description: { $regex: this.escapeRegex(cleanQuery), $options: "i" } },
+        { searchKeywords: { $in: [new RegExp(this.escapeRegex(cleanQuery), "i")] } },
+        { cuisine: { $regex: this.escapeRegex(cleanQuery), $options: "i" } },
+        { "ingredients.name": { $regex: this.escapeRegex(cleanQuery), $options: "i" } },
       ];
     }
 
@@ -137,15 +120,7 @@ export class SearchService {
 
     return {
       query: cleanQuery,
-      interpretedIntent: isConversational
-        ? {
-            cuisine: intent.cuisine,
-            mealType: intent.mealType,
-            diet: intent.diet,
-            maxTime: intent.maxCookingTime,
-            ingredients: intent.ingredients,
-          }
-        : null,
+      interpretedIntent: null,
       recipes: recipes.slice(0, take),
       pagination: {
         page: Number(page),
@@ -154,6 +129,10 @@ export class SearchService {
         totalPages: Math.ceil(total / take),
       },
     };
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   async autocomplete(term: string) {

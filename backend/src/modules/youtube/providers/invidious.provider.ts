@@ -45,7 +45,7 @@ export class InvidiousVideoProvider implements VideoProvider {
     const instances = this.getInstances();
     if (instances.length === 0) return [];
 
-    const searchQuery = `${query.trim()} recipe tutorial`;
+    const searchQuery = /\brecipe\b/i.test(query) ? `${query.trim()} tutorial` : `${query.trim()} recipe tutorial`;
 
     // Try up to MAX_ATTEMPTS instances
     for (let i = 0; i < Math.min(instances.length, this.MAX_ATTEMPTS); i++) {

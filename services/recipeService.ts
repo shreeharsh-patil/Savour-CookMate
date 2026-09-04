@@ -33,12 +33,12 @@ export function mapMongoRecipeToClient(doc: any): Recipe {
 
   return {
     id: doc._id?.toString() || doc.id || doc.slug,
-    name: doc.name || doc.title || "Savory Dish",
-    title: doc.name || doc.title || "Savory Dish",
+    name: doc.name || doc.title || "",
+    title: doc.name || doc.title || "",
     description: doc.description || "",
-    cuisine: doc.cuisine || "Global",
-    mealType: Array.isArray(doc.mealTypes) && doc.mealTypes.length > 0 ? doc.mealTypes[0] : doc.mealType || doc.category || "Dinner",
-    diet: Array.isArray(doc.dietaryTags) && doc.dietaryTags.length > 0 ? doc.dietaryTags[0] : doc.diet || "All",
+    cuisine: doc.cuisine || "",
+    mealType: Array.isArray(doc.mealTypes) && doc.mealTypes.length > 0 ? doc.mealTypes[0] : doc.mealType || doc.category || "",
+    diet: Array.isArray(doc.dietaryTags) && doc.dietaryTags.length > 0 ? doc.dietaryTags[0] : doc.diet || "",
     difficulty: doc.difficulty || undefined,
     prepTime: doc.prepTime || undefined,
     cookTime: doc.cookTime || undefined,
@@ -52,12 +52,12 @@ export function mapMongoRecipeToClient(doc: any): Recipe {
     ingredients: (doc.ingredients || []).map((ing: any) => ({
       name: ing.name,
       normalizedName: ing.normalizedName || ing.name?.toLowerCase() || "",
-      quantity: ing.quantity || "1",
-      unit: ing.unit || "unit",
+      quantity: ing.quantity || "",
+      unit: ing.unit || "",
       optional: Boolean(ing.optional),
-      category: ing.category || "Produce",
+      category: ing.category || "",
       item: ing.name,
-      amount: `${ing.quantity || "1"} ${ing.unit || ""}`.trim(),
+      amount: `${ing.quantity || ""} ${ing.unit || ""}`.trim(),
     })),
     instructions,
     steps: doc.steps || [],
@@ -178,7 +178,7 @@ export const recipeService = {
       const items = options.selectedIngredients || options.ingredients;
       const res = await api.pantry.findDishes(
         items,
-        Boolean(options.naturalLanguagePrompt || items?.length)
+        false
       );
 
       const allDeterministic = [

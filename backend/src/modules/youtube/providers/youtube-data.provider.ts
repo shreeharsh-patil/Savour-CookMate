@@ -40,7 +40,7 @@ export class YouTubeDataVideoProvider implements VideoProvider {
   ): Promise<VideoMetadata[]> {
     if (!this.isConfigured()) return [];
 
-    const dishQuery = `${query.trim()} recipe`;
+    const dishQuery = /\brecipe\b/i.test(query) ? query.trim() : `${query.trim()} recipe`;
     const preferredLang = options.languages?.[0];
     const langCode = normalizeLanguageCode(preferredLang);
 

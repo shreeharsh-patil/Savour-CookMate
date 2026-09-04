@@ -111,7 +111,7 @@ export const api = {
       apiClient<{ cookWithoutShopping: any[]; missingOneIngredient: any[]; useTheseSoon: any[] }>(
         "/api/v1/pantry/smart-sections"
       ),
-    findDishes: (ingredients?: string[], includeAi = true) =>
+    findDishes: (ingredients?: string[], includeAi = false) =>
       apiClient<{
         makeNow: any[];
         almostThere: any[];
@@ -306,4 +306,3 @@ export const api = {
       }),
   },
 };
-

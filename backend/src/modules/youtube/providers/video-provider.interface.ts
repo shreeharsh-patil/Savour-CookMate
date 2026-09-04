@@ -8,8 +8,17 @@ export interface VideoSearchOptions {
   filter?: "recommended" | "english" | "hindi" | "quick" | "detailed" | "all" | string;
   maxResults?: number;
   recipeKeywords?: string[];
+  recipeFeatures?: {
+    mainIngredient?: string;
+    cuisine?: string;
+    category?: string;
+    cookingMethod?: string;
+    importantKeywords?: string[];
+  };
   recipeId?: string;
 }
+
+export type VideoMatchType = "recommended" | "strong" | "related" | "similar";
 
 export interface VideoMetadata {
   id: string;
@@ -24,7 +33,7 @@ export interface VideoMetadata {
   views?: string; // only if real
   viewCount?: number; // only if real
   language?: string; // only if real and known
-  matchType?: "recommended" | "related";
+  matchType?: VideoMatchType;
   relevanceScore: number;
   provider: "recipe_source" | "youtube_data_api" | "invidious";
 }

@@ -61,6 +61,8 @@ export class RecipesService {
           if ((!existing.instructions || existing.instructions.length === 0) && item.instructions?.length > 0) {
             existing.instructions = item.instructions;
             existing.steps = item.steps as any;
+            existing.isHydrated = true;
+            existing.detailFetchedAt = new Date();
           }
           if (!existing.youtubeUrl && item.youtubeUrl) existing.youtubeUrl = item.youtubeUrl;
           if (!existing.youtubeVideoId && item.youtubeVideoId) existing.youtubeVideoId = item.youtubeVideoId;
@@ -71,7 +73,9 @@ export class RecipesService {
           const created = await this.recipeModel.create({
             ...item,
             status: "published",
-            popularityScore: 5,
+            isHydrated: Boolean(item.instructions?.length),
+            detailFetchedAt: item.instructions?.length ? new Date() : undefined,
+            popularityScore: 0,
             cookCount: 0,
             ratingCount: 0,
             averageRating: null,
@@ -244,10 +248,10 @@ export class RecipesService {
       recipe = await this.recipeModel.findOne({ externalId: cleanId }).lean();
     }
 
-    // 3. Only then try external provider lookup
-    if (!recipe) {
+    // 3. Hydrate provider records that were saved from shallow list/filter results.
+    if (!recipe || (!recipe.instructions?.length && recipe.provider === this.mealDbProvider.providerName)) {
       try {
-        const external = await this.mealDbProvider.getRecipe(cleanId);
+        const external = await this.mealDbProvider.getRecipe(recipe?.externalId || cleanId);
         if (external) {
           const [saved] = await this.upsertProviderRecipes([external]);
           recipe = saved;

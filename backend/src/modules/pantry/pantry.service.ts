@@ -347,10 +347,7 @@ export class PantryService {
     // 3. Result Quality Evaluation & AI Threshold
     // If makeNow + almostThere >= 3, verified real recipes are sufficient. Do NOT call Gemini.
     const strongMatchesCount = makeNow.length + almostThere.length;
-    const shouldCallGemini =
-      includeAi === true
-        ? true
-        : strongMatchesCount < 3 && ingredientNames.length >= 2;
+    const shouldCallGemini = strongMatchesCount < 3 && ingredientNames.length >= 2;
 
     let aiSuggestions: any[] = [];
     if (shouldCallGemini) {

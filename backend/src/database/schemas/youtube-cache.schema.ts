@@ -41,7 +41,7 @@ export class YouTubeVideoItem {
   @Prop({ type: String, default: "" })
   language?: string;
 
-  @Prop({ type: String, enum: ["recommended", "related"] })
+  @Prop({ type: String, enum: ["recommended", "strong", "related", "similar"] })
   matchType?: string;
 
   @Prop({ type: String, default: "youtube" })

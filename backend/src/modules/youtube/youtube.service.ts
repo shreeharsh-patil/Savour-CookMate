@@ -11,7 +11,7 @@ import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { RecipeSourceVideoProvider } from "./providers/recipe-source.provider";
 import { YouTubeDataVideoProvider } from "./providers/youtube-data.provider";
 import { InvidiousVideoProvider } from "./providers/invidious.provider";
-import { getDishAliases, rankAndFilterVideos, RANKING_VERSION } from "./providers/ranking.utils";
+import { buildProgressiveQueries, rankAndFilterVideos, RANKING_VERSION } from "./providers/ranking.utils";
 import { VideoMetadata, VideoSearchOptions } from "./providers/video-provider.interface";
 
 @Injectable()
@@ -89,6 +89,7 @@ export class YouTubeService {
     recipeId?: string
   ): Promise<YouTubeVideoItem[]> {
     let exactRecipeVideo: VideoMetadata | null = null;
+    let recipeContext: any = null;
 
     // =========================================================================
     // PRIORITY 1: Exact recipe-linked tutorial stored in MongoDB / TheMealDB
@@ -106,6 +107,7 @@ export class YouTubeService {
           .lean();
 
         if (recipeDoc) {
+          recipeContext = recipeDoc;
           const linkedVideo = await this.recipeSourceProvider.resolveFromRecipe(
             recipeDoc
           );
@@ -173,12 +175,13 @@ export class YouTubeService {
       filter,
       maxResults: 6,
       recipeId,
+      recipeFeatures: this.deriveRecipeFeatures(dishName, recipeContext),
     };
+    const queries = buildProgressiveQueries(searchOptions);
 
     let searchResults: VideoMetadata[] = [];
 
     if (this.youtubeDataProvider.isConfigured()) {
-      const queries = Array.from(new Set([dishName, ...getDishAliases(dishName).slice(1), `${dishName} cooking`]));
       searchLoop: for (const query of queries) {
         for (const language of languages) {
         try {
@@ -188,7 +191,7 @@ export class YouTubeService {
           });
           searchResults.push(...results);
           // Do not consume quota on secondary languages after three strong matches.
-          if (rankAndFilterVideos(searchResults, searchOptions, 60).length >= 3) break searchLoop;
+          if (rankAndFilterVideos(searchResults, searchOptions, 45).length >= 3) break searchLoop;
         } catch (err: any) {
           this.logger.warn(`YouTube Data API failed: ${err.message}`);
         }
@@ -199,19 +202,20 @@ export class YouTubeService {
     // =========================================================================
     // PRIORITY 4: Free Invidious Public API Fallback
     // =========================================================================
-    if (searchResults.length === 0) {
+    if (rankAndFilterVideos(searchResults, searchOptions, 45).length < 3) {
       try {
-        searchResults = await this.invidiousProvider.searchVideos(
-          dishName,
-          searchOptions
-        );
+        for (const query of queries) {
+          const results = await this.invidiousProvider.searchVideos(query, searchOptions);
+          searchResults.push(...results);
+          if (rankAndFilterVideos(searchResults, searchOptions, 45).length >= 3) break;
+        }
       } catch (err: any) {
         this.logger.warn(`Invidious search fallback failed: ${err.message}`);
       }
     }
 
     // Validation rejects weak dish matches before relevance-first ranking.
-    let ranked = rankAndFilterVideos(searchResults, searchOptions, 60);
+    let ranked = rankAndFilterVideos(searchResults, searchOptions, 45);
 
     // If an exact recipe video exists, always put it first
     if (exactRecipeVideo) {
@@ -261,6 +265,24 @@ export class YouTubeService {
     return finalVideos;
   }
 
+  private deriveRecipeFeatures(dishName: string, recipe?: any): VideoSearchOptions["recipeFeatures"] {
+    const source = `${dishName} ${recipe?.name || ""} ${recipe?.category || ""} ${(recipe?.tags || []).join(" ")} ${(recipe?.searchKeywords || []).join(" ")}`.toLowerCase();
+    const ingredientNames = (recipe?.ingredients || []).map((ingredient: any) => `${ingredient.normalizedName || ""} ${ingredient.name || ""}`).join(" ").toLowerCase();
+    const mainIngredient = ["chicken", "mutton", "lamb", "beef", "pork", "fish", "prawn", "shrimp", "egg", "paneer", "tofu", "mushroom", "potato", "dal", "lentil", "rice"]
+      .find((ingredient) => new RegExp(`\\b${ingredient}\\b`, "i").test(`${source} ${ingredientNames}`));
+    const cookingMethod = ["stir fry", "curry", "fried", "grilled", "baked", "steamed", "roasted", "one pot", "pressure cooked", "marinated", "pan cooked", "biryani", "masala"]
+      .find((method) => source.includes(method));
+    const importantKeywords = dishName.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 2 && word !== mainIngredient && !["recipe", "style", "indian"].includes(word));
+
+    return {
+      mainIngredient,
+      cuisine: recipe?.cuisine,
+      category: recipe?.category || recipe?.mealTypes?.[0],
+      cookingMethod,
+      importantKeywords,
+    };
+  }
+
   private toCacheItem(v: VideoMetadata): YouTubeVideoItem {
     return {
       id: v.id,
@@ -275,7 +297,7 @@ export class YouTubeService {
       views: v.views || "",
       viewCount: v.viewCount || 0,
       language: v.language || "",
-      matchType: v.matchType || (v.relevanceScore >= 75 ? "recommended" : "related"),
+      matchType: v.matchType || (v.relevanceScore >= 90 ? "recommended" : v.relevanceScore >= 75 ? "strong" : v.relevanceScore >= 55 ? "related" : "similar"),
       provider: v.provider || "youtube",
       score: v.relevanceScore || 0,
       relevanceScore: v.relevanceScore || 0,

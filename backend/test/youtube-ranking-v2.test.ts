@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { calculateRelevanceScore, normalizeDishName, rankAndFilterVideos, validateVideoCandidate } from "../src/modules/youtube/providers/ranking.utils";
+import { buildProgressiveQueries, calculateRelevanceScore, normalizeDishName, rankAndFilterVideos, validateVideoCandidate } from "../src/modules/youtube/providers/ranking.utils";
 import { VideoMetadata, VideoSearchOptions } from "../src/modules/youtube/providers/video-provider.interface";
 
 const candidate = (title: string, overrides: Partial<VideoMetadata> = {}): VideoMetadata => ({
@@ -52,8 +52,8 @@ describe("YouTube ranking v2", () => {
     const related = candidate("Traditional Chicken Cafreal Recipe", { durationSeconds: 540 });
     const ranked = rankAndFilterVideos([related], options("Goan Chicken Cafreal"), 60);
     assert.equal(ranked.length, 1);
-    assert.equal(ranked[0].matchType, "related");
-    assert.ok(ranked[0].relevanceScore >= 60 && ranked[0].relevanceScore < 75);
+    assert.equal(ranked[0].matchType, "strong");
+    assert.ok(ranked[0].relevanceScore >= 75 && ranked[0].relevanceScore < 90);
   });
 
   test("deduplicates IDs and near-identical uploads while preserving the strongest exact result", () => {
@@ -64,5 +64,36 @@ describe("YouTube ranking v2", () => {
     ], options("Butter Chicken"));
     assert.equal(ranked.length, 1);
     assert.equal(ranked[0].id, "firstvideo01");
+  });
+
+  test("admits a related paneer curry only when same-ingredient method evidence exists", () => {
+    const fallbackOptions = options("Paneer Butter Masala", {
+      recipeFeatures: { mainIngredient: "paneer", cuisine: "North Indian", category: "curry", cookingMethod: "curry", importantKeywords: ["butter", "masala"] },
+    });
+    const ranked = rankAndFilterVideos([candidate("Restaurant Style Paneer Curry Recipe")], fallbackOptions, 45);
+    assert.equal(ranked.length, 1);
+    assert.equal(ranked[0].matchType, "related");
+    assert.ok(ranked[0].relevanceScore >= 55);
+    assert.equal(rankAndFilterVideos([candidate("Butter Chicken Curry Recipe")], fallbackOptions, 45).length, 0);
+  });
+
+  test("admits a same-ingredient, same-cuisine similar tutorial but rejects conflicting proteins", () => {
+    const fallbackOptions = options("Goan Prawn Curry", {
+      recipeFeatures: { mainIngredient: "prawn", cuisine: "Goan", category: "curry", cookingMethod: "curry" },
+    });
+    const ranked = rankAndFilterVideos([candidate("Indian Coconut Prawn Curry Recipe")], fallbackOptions, 45);
+    assert.equal(ranked.length, 1);
+    assert.ok(["related", "similar"].includes(ranked[0].matchType!));
+    assert.equal(rankAndFilterVideos([candidate("Goan Fish Curry Recipe")], fallbackOptions, 45).length, 0);
+  });
+
+  test("builds progressive alias, method, cuisine, and category queries without duplicates", () => {
+    const queries = buildProgressiveQueries(options("Paneer Butter Masala", {
+      recipeFeatures: { mainIngredient: "paneer", cuisine: "North Indian", category: "curry", cookingMethod: "curry" },
+    }));
+    assert.ok(queries.includes("Paneer Butter Masala recipe"));
+    assert.ok(queries.includes("paneer makhani recipe"));
+    assert.ok(queries.includes("paneer North Indian recipe"));
+    assert.equal(new Set(queries).size, queries.length);
   });
 });
