@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Clock, Plus, CheckCircle, AlertCircle, Sparkles } from 'lucide-react-native';
+import { Clock, Plus, CheckCircle, AlertCircle, ChefHat } from 'lucide-react-native';
 import { PantryRecipeRecommendation } from '../types';
 import { FoodImage } from './FoodImage';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme';
@@ -83,11 +83,13 @@ export const PantryMatchCard: React.FC<PantryMatchCardProps> = ({
               </Text>
             </View>
 
-            {recommendation.reasonForRecommendation &&
-            recommendation.reasonForRecommendation.toLowerCase().includes('suggested') ? (
-              <View style={styles.aiBadge}>
-                <Sparkles size={10} color="#7C3AED" />
-                <Text style={styles.aiBadgeText}>Suggested from your ingredients</Text>
+            {(recommendation.reasonForRecommendation &&
+              (recommendation.reasonForRecommendation.toLowerCase().includes('kitchen') ||
+               recommendation.reasonForRecommendation.toLowerCase().includes('suggested'))) ||
+             recommendation.group === 'MORE IDEAS' ? (
+              <View style={styles.kitchenBadge}>
+                <ChefHat size={11} color={COLORS.primary} />
+                <Text style={styles.kitchenBadgeText}>Based on your kitchen</Text>
               </View>
             ) : null}
           </View>
@@ -192,19 +194,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.textMuted,
   },
-  aiBadge: {
+  kitchenBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: `${COLORS.primary}18`,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: RADIUS.xs,
   },
-  aiBadgeText: {
+  kitchenBadgeText: {
     fontSize: 9,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: '#7C3AED',
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    color: COLORS.primary,
     textTransform: 'uppercase',
   },
   title: {

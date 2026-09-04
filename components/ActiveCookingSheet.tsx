@@ -9,6 +9,9 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import {
   X,
@@ -28,16 +31,25 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../store/useAppStore';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { Recipe } from '../types';
 
 import { useKeepAwake } from 'expo-keep-awake';
 import { api } from '../services/api';
 import { analytics } from '../services/analytics';
 
 export const ActiveCookingSheet: React.FC = () => {
-  useKeepAwake();
-
   const isCookingMode = useAppStore((state) => state.isCookingMode);
   const selectedRecipe = useAppStore((state) => state.selectedRecipe);
+
+  if (!isCookingMode || !selectedRecipe) return null;
+
+  return <ActiveCookingContent recipe={selectedRecipe} />;
+};
+
+const ActiveCookingContent: React.FC<{ recipe: Recipe }> = ({ recipe: selectedRecipe }) => {
+  // Battery-safe keep-awake: ONLY active while this component is mounted during active cooking
+  useKeepAwake();
+
   const exitCookingMode = useAppStore((state) => state.exitCookingMode);
   const cookingStepIndex = useAppStore((state) => state.cookingStepIndex);
   const setCookingStepIndex = useAppStore((state) => state.setCookingStepIndex);
@@ -58,8 +70,6 @@ export const ActiveCookingSheet: React.FC = () => {
   const [reviewNote, setReviewNote] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
-  if (!isCookingMode || !selectedRecipe) return null;
-
   const totalSteps = selectedRecipe.instructions.length;
   const currentStepText = selectedRecipe.instructions[cookingStepIndex] || '';
 
@@ -72,22 +82,31 @@ export const ActiveCookingSheet: React.FC = () => {
       ? selectedRecipe.tips[cookingStepIndex % selectedRecipe.tips.length]
       : null;
 
-  // Countdown interval
+  // Countdown interval with functional updates avoiding stale closures
   useEffect(() => {
     let interval: any = null;
     if (isTimerRunning && cookingTimerSeconds > 0) {
       interval = setInterval(() => {
-        setCookingTimerSeconds(cookingTimerSeconds - 1);
+        setCookingTimerSeconds((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setIsTimerRunning(false);
+            try {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch {}
+            setToast('🔔 Step timer finished! Ready for the next stage.');
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
     } else if (cookingTimerSeconds === 0 && isTimerRunning) {
       setIsTimerRunning(false);
-      try {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {}
-      setToast('🔔 Step timer finished! Ready for the next stage.');
     }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, cookingTimerSeconds]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTimerRunning]);
 
   const triggerHaptic = () => {
     try {
@@ -329,127 +348,145 @@ export const ActiveCookingSheet: React.FC = () => {
         animationType="fade"
         onRequestClose={() => handleCompleteWithReview(true)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Dish Complete!</Text>
-            <Text style={styles.modalSubtitle}>
-              How was cooking {selectedRecipe.title || selectedRecipe.name}?
-            </Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalScrollContent}
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Dish Complete!</Text>
+              <Text style={styles.modalSubtitle}>
+                How was cooking {selectedRecipe.title || selectedRecipe.name}?
+              </Text>
 
-            {/* 1 - 5 Stars */}
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Pressable
-                  key={star}
-                  onPress={() => setUserRating(star)}
-                  hitSlop={8}
-                >
-                  <Star
-                    size={32}
-                    color={star <= userRating ? '#FBBF24' : '#4B5563'}
-                    fill={star <= userRating ? '#FBBF24' : 'transparent'}
-                  />
-                </Pressable>
-              ))}
-            </View>
+              {/* 1 - 5 Stars */}
+              <View style={styles.starsRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Pressable
+                    key={star}
+                    onPress={() => setUserRating(star)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                    style={styles.starBtn}
+                  >
+                    <Star
+                      size={32}
+                      color={star <= userRating ? '#FBBF24' : '#4B5563'}
+                      fill={star <= userRating ? '#FBBF24' : 'transparent'}
+                    />
+                  </Pressable>
+                ))}
+              </View>
 
-            {/* Difficulty feedback */}
-            <Text style={styles.feedbackLabel}>Recipe Difficulty</Text>
-            <View style={styles.difficultyRow}>
-              {(['Easy', 'Just Right', 'Challenging'] as const).map((diff) => (
+              {/* Difficulty feedback */}
+              <Text style={styles.feedbackLabel}>Recipe Difficulty</Text>
+              <View style={styles.difficultyRow}>
+                {(['Easy', 'Just Right', 'Challenging'] as const).map((diff) => (
+                  <Pressable
+                    key={diff}
+                    style={[
+                      styles.diffBtn,
+                      difficultyFeedback === diff && styles.diffBtnSelected,
+                    ]}
+                    onPress={() => setDifficultyFeedback(diff)}
+                    accessibilityRole="button"
+                  >
+                    <Text
+                      style={[
+                        styles.diffBtnText,
+                        difficultyFeedback === diff && styles.diffBtnTextSelected,
+                      ]}
+                    >
+                      {diff}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Would Cook Again */}
+              <Text style={styles.feedbackLabel}>Would you cook this again?</Text>
+              <View style={styles.wouldCookRow}>
                 <Pressable
-                  key={diff}
                   style={[
-                    styles.diffBtn,
-                    difficultyFeedback === diff && styles.diffBtnSelected,
+                    styles.wouldCookBtn,
+                    wouldCookAgain && styles.wouldCookBtnSelected,
                   ]}
-                  onPress={() => setDifficultyFeedback(diff)}
+                  onPress={() => setWouldCookAgain(true)}
+                  accessibilityRole="button"
                 >
+                  <ThumbsUp size={16} color={wouldCookAgain ? COLORS.textInverted : COLORS.textPrimary} />
                   <Text
                     style={[
-                      styles.diffBtnText,
-                      difficultyFeedback === diff && styles.diffBtnTextSelected,
+                      styles.wouldCookBtnText,
+                      wouldCookAgain && styles.wouldCookBtnTextSelected,
                     ]}
                   >
-                    {diff}
+                    Yes
                   </Text>
                 </Pressable>
-              ))}
-            </View>
 
-            {/* Would Cook Again */}
-            <Text style={styles.feedbackLabel}>Would you cook this again?</Text>
-            <View style={styles.wouldCookRow}>
-              <Pressable
-                style={[
-                  styles.wouldCookBtn,
-                  wouldCookAgain && styles.wouldCookBtnSelected,
-                ]}
-                onPress={() => setWouldCookAgain(true)}
-              >
-                <ThumbsUp size={14} color={wouldCookAgain ? COLORS.textInverted : COLORS.textPrimary} />
-                <Text
+                <Pressable
                   style={[
-                    styles.wouldCookBtnText,
-                    wouldCookAgain && styles.wouldCookBtnTextSelected,
+                    styles.wouldCookBtn,
+                    !wouldCookAgain && styles.wouldCookBtnSelected,
                   ]}
+                  onPress={() => setWouldCookAgain(false)}
+                  accessibilityRole="button"
                 >
-                  Yes
-                </Text>
-              </Pressable>
+                  <ThumbsDown size={16} color={!wouldCookAgain ? COLORS.textInverted : COLORS.textPrimary} />
+                  <Text
+                    style={[
+                      styles.wouldCookBtnText,
+                      !wouldCookAgain && styles.wouldCookBtnTextSelected,
+                    ]}
+                  >
+                    No
+                  </Text>
+                </Pressable>
+              </View>
 
-              <Pressable
-                style={[
-                  styles.wouldCookBtn,
-                  !wouldCookAgain && styles.wouldCookBtnSelected,
-                ]}
-                onPress={() => setWouldCookAgain(false)}
-              >
-                <ThumbsDown size={14} color={!wouldCookAgain ? COLORS.textInverted : COLORS.textPrimary} />
-                <Text
-                  style={[
-                    styles.wouldCookBtnText,
-                    !wouldCookAgain && styles.wouldCookBtnTextSelected,
-                  ]}
+              {/* Optional note */}
+              <TextInput
+                style={styles.reviewInput}
+                placeholder="Chef's notes (optional tweaks, salt adjustments)..."
+                placeholderTextColor={COLORS.textMuted}
+                value={reviewNote}
+                onChangeText={setReviewNote}
+                multiline
+              />
+
+              {/* Submit / Skip buttons */}
+              <View style={styles.modalActionRow}>
+                <Pressable
+                  style={styles.skipBtn}
+                  onPress={() => handleCompleteWithReview(true)}
+                  disabled={isSubmittingReview}
+                  accessibilityRole="button"
                 >
-                  No
-                </Text>
-              </Pressable>
+                  <Text style={styles.skipBtnText}>Skip</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.saveReviewBtn}
+                  onPress={() => handleCompleteWithReview(false)}
+                  disabled={isSubmittingReview}
+                  accessibilityRole="button"
+                >
+                  {isSubmittingReview ? (
+                    <ActivityIndicator size="small" color={COLORS.textInverted} />
+                  ) : (
+                    <Text style={styles.saveReviewBtnText}>Save & Finish</Text>
+                  )}
+                </Pressable>
+              </View>
             </View>
-
-            {/* Optional note */}
-            <TextInput
-              style={styles.reviewInput}
-              placeholder="Chef's notes (optional tweaks, salt adjustments)..."
-              placeholderTextColor="#6B7280"
-              value={reviewNote}
-              onChangeText={setReviewNote}
-            />
-
-            {/* Submit / Skip buttons */}
-            <View style={styles.modalActionRow}>
-              <Pressable
-                style={styles.skipBtn}
-                onPress={() => handleCompleteWithReview(true)}
-                disabled={isSubmittingReview}
-              >
-                <Text style={styles.skipBtnText}>Skip</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.saveReviewBtn}
-                onPress={() => handleCompleteWithReview(false)}
-                disabled={isSubmittingReview}
-              >
-                {isSubmittingReview ? (
-                  <ActivityIndicator size="small" color={COLORS.textInverted} />
-                ) : (
-                  <Text style={styles.saveReviewBtnText}>Save & Finish</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -708,38 +745,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: SPACING.lg,
   },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
   modalCard: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: COLORS.card,
     borderRadius: RADIUS.xl,
     padding: SPACING.lg,
     width: '100%',
     maxWidth: 380,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: COLORS.borderSubtle,
     gap: 12,
   },
   modalTitle: {
     fontSize: TYPOGRAPHY.sizes.h2,
     fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.textInverted,
+    color: COLORS.textPrimary,
     textAlign: 'center',
   },
   modalSubtitle: {
     fontSize: TYPOGRAPHY.sizes.caption,
-    color: '#9CA3AF',
+    color: COLORS.textSecondary,
     textAlign: 'center',
     marginBottom: 4,
   },
   starsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
     paddingVertical: 6,
+  },
+  starBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   feedbackLabel: {
     fontSize: 11,
     fontWeight: TYPOGRAPHY.weights.bold,
-    color: '#D1D5DB',
+    color: COLORS.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 4,
@@ -750,21 +799,23 @@ const styles = StyleSheet.create({
   },
   diffBtn: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 8,
     borderRadius: RADIUS.md,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#3D3D3D',
+    borderColor: COLORS.borderSubtle,
   },
   diffBtnSelected: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
   diffBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: TYPOGRAPHY.weights.medium,
-    color: '#D1D5DB',
+    color: COLORS.textSecondary,
   },
   diffBtnTextSelected: {
     color: COLORS.textInverted,
@@ -776,38 +827,39 @@ const styles = StyleSheet.create({
   },
   wouldCookBtn: {
     flex: 1,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 8,
     borderRadius: RADIUS.md,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: '#3D3D3D',
+    borderColor: COLORS.borderSubtle,
   },
   wouldCookBtnSelected: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
   wouldCookBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: TYPOGRAPHY.weights.medium,
-    color: '#D1D5DB',
+    color: COLORS.textSecondary,
   },
   wouldCookBtnTextSelected: {
     color: COLORS.textInverted,
     fontWeight: TYPOGRAPHY.weights.bold,
   },
   reviewInput: {
-    backgroundColor: '#262626',
+    backgroundColor: COLORS.background,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: '#3D3D3D',
-    padding: 10,
-    color: COLORS.textInverted,
-    fontSize: 12,
-    minHeight: 44,
+    borderColor: COLORS.borderSubtle,
+    padding: 12,
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    minHeight: 48,
   },
   modalActionRow: {
     flexDirection: 'row',
@@ -816,19 +868,21 @@ const styles = StyleSheet.create({
   },
   skipBtn: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 12,
     borderRadius: RADIUS.md,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   skipBtnText: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: COLORS.textSecondary,
     fontWeight: TYPOGRAPHY.weights.medium,
   },
   saveReviewBtn: {
     flex: 2,
+    minHeight: 44,
     paddingVertical: 12,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.primary,

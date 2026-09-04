@@ -70,7 +70,9 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [videoFilter, setVideoFilter] = useState<YouTubeFilter>('recommended');
   const [nutritionData, setNutritionData] = useState<{
     isEstimated: boolean;
+    unavailable?: boolean;
     label: string;
+    confidence?: string;
     disclaimer: string;
     perServing: {
       calories: number;
@@ -395,47 +397,91 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 <View style={styles.cardSection}>
                   <View style={styles.nutritionHeaderRow}>
                     <Text style={styles.sectionHeader}>Nutritional Highlights</Text>
-                    <View style={styles.nutritionEstimatedBadge}>
-                      <Text style={styles.nutritionEstimatedBadgeText}>Estimated nutrition</Text>
+                    <View
+                      style={[
+                        styles.nutritionEstimatedBadge,
+                        nutritionData?.unavailable && styles.nutritionUnavailableBadge,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.nutritionEstimatedBadgeText,
+                          nutritionData?.unavailable && styles.nutritionUnavailableBadgeText,
+                        ]}
+                      >
+                        {nutritionData?.unavailable ? 'Nutrition unavailable' : 'Estimated nutrition'}
+                      </Text>
                     </View>
                   </View>
-                  <Text style={styles.nutritionDisclaimerText}>
-                    Values are approximate per serving based on standard USDA FoodData ingredients.
-                  </Text>
-                  <View style={styles.nutritionGrid}>
-                    <View style={styles.nutritionCell}>
-                      <Text style={styles.nutritionLabel}>Calories</Text>
-                      <Text style={styles.nutritionVal}>
-                        {Math.round((nutritionData?.perServing?.calories ?? recipe.calories ?? 350) * (currentServings / baseServings))} kcal
+
+                  {nutritionData?.unavailable ? (
+                    <Text style={styles.nutritionDisclaimerText}>
+                      Standard USDA nutritional breakdown is currently unavailable for this recipe.
+                    </Text>
+                  ) : (
+                    <>
+                      <Text style={styles.nutritionDisclaimerText}>
+                        Per serving • USDA FoodData Central reference
+                        {nutritionData?.confidence ? ` (${nutritionData.confidence} confidence)` : ''}
                       </Text>
-                    </View>
-                    <View style={styles.nutritionCell}>
-                      <Text style={styles.nutritionLabel}>Protein</Text>
-                      <Text style={styles.nutritionVal}>
-                        {Math.round((nutritionData?.perServing?.protein ?? recipe.proteinGrams ?? Math.round((recipe.calories || 350) * 0.05)) * (currentServings / baseServings) * 10) / 10}g
-                      </Text>
-                    </View>
-                    <View style={styles.nutritionCell}>
-                      <Text style={styles.nutritionLabel}>Carbs</Text>
-                      <Text style={styles.nutritionVal}>
-                        {Math.round((nutritionData?.perServing?.carbs ?? recipe.carbsGrams ?? Math.round((recipe.calories || 350) * 0.09)) * (currentServings / baseServings) * 10) / 10}g
-                      </Text>
-                    </View>
-                    <View style={styles.nutritionCell}>
-                      <Text style={styles.nutritionLabel}>Fat</Text>
-                      <Text style={styles.nutritionVal}>
-                        {Math.round((nutritionData?.perServing?.fat ?? recipe.fatGrams ?? Math.round((recipe.calories || 350) * 0.04)) * (currentServings / baseServings) * 10) / 10}g
-                      </Text>
-                    </View>
-                    {nutritionData?.perServing?.fiber !== undefined && (
-                      <View style={styles.nutritionCell}>
-                        <Text style={styles.nutritionLabel}>Fiber</Text>
-                        <Text style={styles.nutritionVal}>
-                          {Math.round(nutritionData.perServing.fiber * (currentServings / baseServings) * 10) / 10}g
-                        </Text>
+                      <View style={styles.nutritionGrid}>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Calories</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.perServing?.calories ?? recipe.calories ?? '--'} kcal
+                          </Text>
+                        </View>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Protein</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.perServing?.protein !== undefined
+                              ? `${nutritionData.perServing.protein}g`
+                              : recipe.proteinGrams !== undefined
+                              ? `${recipe.proteinGrams}g`
+                              : '--'}
+                          </Text>
+                        </View>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Carbs</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.perServing?.carbs !== undefined
+                              ? `${nutritionData.perServing.carbs}g`
+                              : recipe.carbsGrams !== undefined
+                              ? `${recipe.carbsGrams}g`
+                              : '--'}
+                          </Text>
+                        </View>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Fat</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.perServing?.fat !== undefined
+                              ? `${nutritionData.perServing.fat}g`
+                              : recipe.fatGrams !== undefined
+                              ? `${recipe.fatGrams}g`
+                              : '--'}
+                          </Text>
+                        </View>
+                        {nutritionData?.perServing?.fiber !== undefined && (
+                          <View style={styles.nutritionCell}>
+                            <Text style={styles.nutritionLabel}>Fiber</Text>
+                            <Text style={styles.nutritionVal}>
+                              {nutritionData.perServing.fiber}g
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                  </View>
+                      {currentServings > 1 && (nutritionData?.perServing?.calories || recipe.calories) ? (
+                        <Text style={styles.nutritionTotalSubtext}>
+                          Total for all {currentServings} servings:{' '}
+                          {Math.round(
+                            (nutritionData?.perServing?.calories ?? recipe.calories ?? 0) *
+                              currentServings
+                          )}{' '}
+                          kcal
+                        </Text>
+                      ) : null}
+                    </>
+                  )}
                 </View>
 
                 {/* Chef Tips */}
@@ -779,10 +825,24 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
+  nutritionUnavailableBadge: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.borderSubtle,
+  },
+  nutritionUnavailableBadgeText: {
+    color: COLORS.textMuted,
+  },
   nutritionDisclaimerText: {
     fontSize: 11,
     color: COLORS.textMuted,
     marginBottom: SPACING.sm,
+    fontStyle: 'italic',
+  },
+  nutritionTotalSubtext: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 8,
+    textAlign: 'center',
     fontStyle: 'italic',
   },
   bodyText: {

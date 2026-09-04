@@ -62,10 +62,12 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
           <Pressable
             style={styles.bookmarkButton}
             onPress={() => toggleSaveRecipe(recipe)}
-            hitSlop={8}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={isSaved ? "Remove from saved recipes" : "Save recipe"}
           >
             <Bookmark
-              size={16}
+              size={18}
               color={isSaved ? COLORS.primary : COLORS.textPrimary}
               fill={isSaved ? COLORS.primary : 'transparent'}
             />
@@ -108,14 +110,18 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
           <Pressable
             style={styles.cookButton}
             onPress={() => startCookingMode(recipe)}
+            accessibilityRole="button"
+            accessibilityLabel={`Cook ${recipe.title || recipe.name}`}
           >
-            <Play size={11} color={COLORS.textInverted} fill={COLORS.textInverted} />
+            <Play size={12} color={COLORS.textInverted} fill={COLORS.textInverted} />
             <Text style={styles.cookButtonText}>Cook Now</Text>
           </Pressable>
 
           <Pressable
             style={styles.detailsLink}
             onPress={handlePress}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${recipe.title || recipe.name}`}
           >
             <Text style={styles.detailsLinkText}>View Recipe →</Text>
           </Pressable>
