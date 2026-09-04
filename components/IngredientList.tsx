@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { CheckCircle2, Circle, Plus, Minus, AlertCircle } from 'lucide-react-native';
+import { CheckCircle2, Circle, Plus, Minus, AlertCircle, Copy } from 'lucide-react-native';
 import { Ingredient } from '../types';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { scaleIngredientQuantity } from '../utils/formatters';
@@ -15,6 +15,8 @@ interface IngredientListProps {
   onIncrementServings: () => void;
   onDecrementServings: () => void;
   onAddMissingToShoppingList?: () => void;
+  onCopyIngredients?: () => void;
+  onAddSingleMissing?: (name: string) => void;
 }
 
 export const IngredientList: React.FC<IngredientListProps> = ({
@@ -27,6 +29,8 @@ export const IngredientList: React.FC<IngredientListProps> = ({
   onIncrementServings,
   onDecrementServings,
   onAddMissingToShoppingList,
+  onCopyIngredients,
+  onAddSingleMissing,
 }) => {
   const missingCount = ingredients.filter((ing) => {
     const name = (ing.name || ing.item || '').toLowerCase().trim();
@@ -47,22 +51,41 @@ export const IngredientList: React.FC<IngredientListProps> = ({
           </Text>
         </View>
 
-        <View style={styles.servingsControl}>
-          <Pressable
-            style={styles.servingsBtn}
-            onPress={onDecrementServings}
-            hitSlop={8}
-          >
-            <Minus size={14} color={COLORS.textPrimary} />
-          </Pressable>
-          <Text style={styles.servingsValue}>{currentServings} servings</Text>
-          <Pressable
-            style={styles.servingsBtn}
-            onPress={onIncrementServings}
-            hitSlop={8}
-          >
-            <Plus size={14} color={COLORS.textPrimary} />
-          </Pressable>
+        <View style={styles.headerActionsRight}>
+          {onCopyIngredients ? (
+            <Pressable
+              style={styles.copyBtn}
+              onPress={onCopyIngredients}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              accessibilityRole="button"
+              accessibilityLabel="Copy ingredients list"
+            >
+              <Copy size={13} color={COLORS.primary} />
+              <Text style={styles.copyBtnText}>Copy</Text>
+            </Pressable>
+          ) : null}
+
+          <View style={styles.servingsControl}>
+            <Pressable
+              style={styles.servingsBtn}
+              onPress={onDecrementServings}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease servings"
+            >
+              <Minus size={14} color={COLORS.textPrimary} />
+            </Pressable>
+            <Text style={styles.servingsValue}>{currentServings} servings</Text>
+            <Pressable
+              style={styles.servingsBtn}
+              onPress={onIncrementServings}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Increase servings"
+            >
+              <Plus size={14} color={COLORS.textPrimary} />
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -78,6 +101,9 @@ export const IngredientList: React.FC<IngredientListProps> = ({
           <Pressable
             style={styles.addMissingBtn}
             onPress={onAddMissingToShoppingList}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Add all missing ingredients to shopping list"
           >
             <Text style={styles.addMissingBtnText}>Add All</Text>
           </Pressable>
@@ -109,6 +135,9 @@ export const IngredientList: React.FC<IngredientListProps> = ({
                 pressed && styles.itemRowPressed,
               ]}
               onPress={() => onToggleCheck(idx)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isChecked }}
+              accessibilityLabel={`${ing.name || ing.item}, ${scaledQty} ${ing.unit || ''}`}
             >
               <View style={styles.checkIcon}>
                 {isChecked ? (
@@ -140,11 +169,20 @@ export const IngredientList: React.FC<IngredientListProps> = ({
                 </View>
               </View>
 
-              <View
+              <Pressable
                 style={[
                   styles.pantryStatusTag,
                   inPantry ? styles.pantryTagHave : styles.pantryTagMissing,
                 ]}
+                onPress={() => {
+                  if (!inPantry && onAddSingleMissing) {
+                    onAddSingleMissing(ing.name || ing.item || '');
+                  }
+                }}
+                disabled={inPantry || !onAddSingleMissing}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={inPantry ? `${ing.name} in kitchen` : `Add ${ing.name} to shopping list`}
               >
                 <Text
                   style={[
@@ -152,9 +190,9 @@ export const IngredientList: React.FC<IngredientListProps> = ({
                     inPantry ? styles.pantryTextHave : styles.pantryTextMissing,
                   ]}
                 >
-                  {inPantry ? 'In Kitchen' : 'Missing'}
+                  {inPantry ? 'In Kitchen' : '+ Add'}
                 </Text>
-              </View>
+              </Pressable>
             </Pressable>
           );
         })}
@@ -182,6 +220,27 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.sizes.caption,
     color: COLORS.textMuted,
     marginTop: 2,
+  },
+  headerActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    gap: 4,
+  },
+  copyBtnText: {
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    color: COLORS.primary,
   },
   servingsControl: {
     flexDirection: 'row',

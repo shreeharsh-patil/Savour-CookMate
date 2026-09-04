@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Refrigerator,
   Filter,
+  RotateCcw,
 } from 'lucide-react-native';
 import { useAppStore } from '../../store/useAppStore';
 import { PantryItem, PantryCategory, PantryMatchGroup } from '../../types';
@@ -53,9 +54,9 @@ const CATEGORIES: PantryCategory[] = [
 
 const MATCH_TABS: { id: PantryMatchGroup | 'ALL'; label: string }[] = [
   { id: 'ALL', label: 'All Matches' },
-  { id: 'MAKE NOW', label: 'Cook Now' },
-  { id: 'ALMOST THERE', label: 'Almost There' },
-  { id: 'GOOD MATCH', label: 'Good Match' },
+  { id: 'MAKE NOW', label: 'Cook Without Shopping' },
+  { id: 'ALMOST THERE', label: 'Missing 1 Ingredient' },
+  { id: 'GOOD MATCH', label: 'Best Match' },
   { id: 'WORTH SHOPPING FOR', label: 'More Ideas' },
 ];
 
@@ -91,10 +92,19 @@ export default function PantryScreen() {
   const [selectedCategory, setSelectedCategory] = useState<PantryCategory>('Produce');
   const [inputMode, setInputMode] = useState<'quick' | 'natural'>('quick');
   const [isExtracting, setIsExtracting] = useState(false);
+  const [lastRemovedItem, setLastRemovedItem] = useState<PantryItem | null>(null);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadPantryItems();
+    return () => {
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    };
   }, []);
+
+  const existingSet = useMemo(() => {
+    return new Set(pantryItems.map((p) => p.name.toLowerCase().trim()));
+  }, [pantryItems]);
 
   const handleAddManual = () => {
     const trimmed = inputName.trim();
@@ -102,11 +112,34 @@ export default function PantryScreen() {
 
     if (trimmed.includes(',')) {
       const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
-      parts.forEach((p) => addPantryItem(p, selectedCategory));
+      parts.forEach((p) => {
+        if (!existingSet.has(p.toLowerCase())) {
+          addPantryItem(p, selectedCategory);
+        }
+      });
     } else {
-      addPantryItem(trimmed, selectedCategory);
+      if (!existingSet.has(trimmed.toLowerCase())) {
+        addPantryItem(trimmed, selectedCategory);
+      }
     }
     setInputName('');
+  };
+
+  const handleRemoveItem = (item: PantryItem) => {
+    removePantryItem(item.id);
+    setLastRemovedItem(item);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    undoTimeoutRef.current = setTimeout(() => {
+      setLastRemovedItem(null);
+    }, 6000);
+  };
+
+  const handleUndoRemove = () => {
+    if (lastRemovedItem) {
+      addPantryItem(lastRemovedItem.name, lastRemovedItem.category);
+      setLastRemovedItem(null);
+      if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    }
   };
 
   const handleExtractNlp = async () => {
@@ -116,14 +149,13 @@ export default function PantryScreen() {
     setIsExtracting(false);
   };
 
-  const existingSet = useMemo(() => {
-    return new Set(pantryItems.map((p) => p.name.toLowerCase().trim()));
-  }, [pantryItems]);
-
   const filteredRecommendations = useMemo(() => {
     return pantryRecommendations.filter((rec) => {
       if (pantryMatchFilter === 'ALL') return true;
       const group = rec.group || rec.matchGroup;
+      if (pantryMatchFilter === 'WORTH SHOPPING FOR') {
+        return group === 'WORTH SHOPPING FOR' || group === 'MORE IDEAS';
+      }
       return group === pantryMatchFilter;
     });
   }, [pantryRecommendations, pantryMatchFilter]);
@@ -140,7 +172,10 @@ export default function PantryScreen() {
         (r) => (r.group || r.matchGroup) === 'GOOD MATCH'
       ).length,
       'WORTH SHOPPING FOR': pantryRecommendations.filter(
-        (r) => (r.group || r.matchGroup) === 'WORTH SHOPPING FOR'
+        (r) => (r.group || r.matchGroup) === 'WORTH SHOPPING FOR' || (r.group || r.matchGroup) === 'MORE IDEAS'
+      ).length,
+      'MORE IDEAS': pantryRecommendations.filter(
+        (r) => (r.group || r.matchGroup) === 'MORE IDEAS'
       ).length,
     } as Record<PantryMatchGroup, number>;
   }, [pantryRecommendations]);
@@ -393,7 +428,7 @@ export default function PantryScreen() {
                   </View>
                   <Pressable
                     style={styles.deleteItemBtn}
-                    onPress={() => removePantryItem(item.id)}
+                    onPress={() => handleRemoveItem(item)}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     accessibilityRole="button"
                     accessibilityLabel={`Remove ${item.name} from kitchen`}
@@ -402,6 +437,23 @@ export default function PantryScreen() {
                   </Pressable>
                 </View>
               ))}
+            </View>
+          )}
+
+          {lastRemovedItem && (
+            <View style={styles.undoBar}>
+              <Text style={styles.undoBarText} numberOfLines={1}>
+                Removed <Text style={styles.undoBarItemName}>{lastRemovedItem.name}</Text>
+              </Text>
+              <Pressable
+                style={styles.undoBtn}
+                onPress={handleUndoRemove}
+                accessibilityRole="button"
+                accessibilityLabel={`Undo removing ${lastRemovedItem.name}`}
+              >
+                <RotateCcw size={13} color={COLORS.primary} />
+                <Text style={styles.undoBtnText}>Undo</Text>
+              </Pressable>
             </View>
           )}
         </View>
@@ -883,5 +935,40 @@ const styles = StyleSheet.create({
   },
   matchTabCountTextActive: {
     color: COLORS.textInverted,
+  },
+  undoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 6,
+  },
+  undoBarText: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  undoBarItemName: {
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textPrimary,
+  },
+  undoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    backgroundColor: COLORS.card,
+  },
+  undoBtnText: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.primary,
   },
 });
