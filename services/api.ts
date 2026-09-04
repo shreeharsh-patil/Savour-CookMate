@@ -257,10 +257,20 @@ export const api = {
 
   // YouTube
   youtube: {
-    getVideos: (dish: string, language = "English", filter = "all") =>
-      apiClient<any[]>(
-        `/api/v1/youtube?dish=${encodeURIComponent(dish)}&language=${encodeURIComponent(language)}&filter=${encodeURIComponent(filter)}`
-      ),
+    getVideos: (
+      dish: string,
+      languages: string[] | string = "English",
+      filter = "recommended",
+      recipeId?: string,
+      signal?: AbortSignal
+    ) => {
+      const langs = Array.isArray(languages) ? languages.join(",") : languages;
+      let url = `/api/v1/youtube?dish=${encodeURIComponent(dish)}&languages=${encodeURIComponent(langs)}&filter=${encodeURIComponent(filter)}`;
+      if (recipeId) {
+        url += `&recipeId=${encodeURIComponent(recipeId)}`;
+      }
+      return apiClient<any[]>(url, { signal });
+    },
   },
 
   // AI Assistant: ONLY Cook With What I Have & practical step advice

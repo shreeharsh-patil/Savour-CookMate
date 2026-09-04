@@ -23,14 +23,16 @@ import {
   ListOrdered,
   Layers,
   UtensilsCrossed,
+  ExternalLink,
 } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
 import { Recipe, YouTubeVideo } from '../types';
 import { FoodImage } from './FoodImage';
 import { IngredientList } from './IngredientList';
 import { CookingStep } from './CookingStep';
 import { VideoCard } from './VideoCard';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme';
-import { formatCookTime, formatRating, formatCalories } from '../utils/formatters';
+import { formatCookTime, formatRating, formatCalories, scaleIngredientQuantity } from '../utils/formatters';
 import { useAppStore } from '../store/useAppStore';
 import { youtubeService, YouTubeFilter } from '../services/youtubeService';
 import { analytics } from '../services/analytics';
@@ -64,10 +66,33 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [currentServings, setCurrentServings] = useState<number>(recipe.servings || 4);
   const [checkedIngredients, setCheckedIngredients] = useState<Record<number, boolean>>({});
-  const [videos, setVideos] = useState<YouTubeVideo[]>([]);
   const [showAllVideos, setShowAllVideos] = useState<boolean>(false);
-  const [isLoadingVideos, setIsLoadingVideos] = useState<boolean>(false);
   const [videoFilter, setVideoFilter] = useState<YouTubeFilter>('recommended');
+
+  // TanStack Query: Lazy-load YouTube videos ONLY when activeTab === 'videos'
+  const {
+    data: videos = [],
+    isLoading: isLoadingVideos,
+  } = useQuery({
+    queryKey: [
+      'recipe-videos',
+      recipe.id,
+      videoFilter,
+      userPreferences.videoLanguages,
+    ],
+    queryFn: async ({ signal }) => {
+      return youtubeService.searchCookingVideos(
+        recipe.title || recipe.name,
+        videoFilter,
+        userPreferences.videoLanguages,
+        recipe.id,
+        signal
+      );
+    },
+    enabled: Boolean(visible && recipe && activeTab === 'videos'),
+    staleTime: 1000 * 60 * 15,
+  });
+
   const [nutritionData, setNutritionData] = useState<{
     isEstimated: boolean;
     unavailable?: boolean;
@@ -108,33 +133,6 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
       isMounted = false;
     };
   }, [visible, recipe?.id]);
-
-  // Load YouTube videos when video tab is selected or recipe changes
-  useEffect(() => {
-    let isMounted = true;
-    const loadVideos = async () => {
-      setIsLoadingVideos(true);
-      try {
-        const results = await youtubeService.searchCookingVideos(
-          recipe.title || recipe.name,
-          videoFilter,
-          userPreferences.videoLanguages
-        );
-        if (isMounted) {
-          setVideos(results);
-        }
-      } catch {
-        // Fallback gracefully
-      } finally {
-        if (isMounted) setIsLoadingVideos(false);
-      }
-    };
-
-    loadVideos();
-    return () => {
-      isMounted = false;
-    };
-  }, [recipe.id, videoFilter, userPreferences.videoLanguages]);
 
   useEffect(() => {
     if (visible && recipe) {
@@ -177,9 +175,33 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     if (missing.length > 0) {
       addMissingToShoppingList(missing, recipe.title, recipe.id);
       missing.forEach((item) => analytics.trackShoppingAdd(item));
+      setToast(`🛒 Added ${missing.length} missing items to shopping list`);
     } else {
       setToast('All ingredients are already in your kitchen!');
     }
+  };
+
+  const handleAddSingleMissing = (ingredientName: string) => {
+    addMissingToShoppingList([ingredientName], recipe.title || recipe.name, recipe.id);
+    analytics.trackShoppingAdd(ingredientName);
+    setToast(`🛒 Added ${ingredientName} to shopping list`);
+  };
+
+  const handleCopyIngredients = () => {
+    const lines = recipe.ingredients.map((ing) => {
+      const qty = scaleIngredientQuantity(
+        ing.quantity || ing.amount || '1',
+        baseServings,
+        currentServings
+      );
+      return `• ${qty} ${ing.unit || ''} ${ing.name || ing.item || ''}`.trim();
+    });
+    const header = `${recipe.title || recipe.name} (${currentServings} servings):\n`;
+    Share.share({
+      message: header + lines.join('\n'),
+      title: `Ingredients for ${recipe.title || recipe.name}`,
+    }).catch(() => {});
+    setToast('📋 Ingredients list shared / copied!');
   };
 
   const handleToggleSave = () => {
@@ -525,6 +547,8 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                   onIncrementServings={handleIncrementServings}
                   onDecrementServings={handleDecrementServings}
                   onAddMissingToShoppingList={handleAddAllMissing}
+                  onCopyIngredients={handleCopyIngredients}
+                  onAddSingleMissing={handleAddSingleMissing}
                 />
               </View>
             )}
@@ -561,12 +585,12 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
               <View style={styles.tabContent}>
                 <Text style={styles.sectionHeader}>Watch How It's Made</Text>
                 <Text style={styles.videoSubtext}>
-                  Curated tutorials matching authentic preparation methods.
+                  Authentic tutorials matching verified culinary preparation methods.
                 </Text>
 
-                {/* Language Filter */}
+                {/* Filter Pills */}
                 <View style={styles.languagePillsRow}>
-                  {(['recommended', 'hindi', 'english', 'quick'] as YouTubeFilter[]).map(
+                  {(['recommended', 'hindi', 'english', 'quick', 'detailed'] as YouTubeFilter[]).map(
                     (filter) => (
                       <Pressable
                         key={filter}
@@ -575,6 +599,9 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                           videoFilter === filter && styles.langPillActive,
                         ]}
                         onPress={() => setVideoFilter(filter)}
+                        hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Filter videos by ${filter}`}
                       >
                         <Text
                           style={[
@@ -597,7 +624,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                         video={vid}
                         onPress={(v) => {
                           analytics.trackYoutubeOpen(v.id, v.title, recipe.id);
-                          setActiveVideo(v);
+                          youtubeService.openVideoInNativeApp(v);
                         }}
                       />
                     ))}
@@ -606,6 +633,9 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                       <Pressable
                         style={styles.showMoreVideosBtn}
                         onPress={() => setShowAllVideos(!showAllVideos)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={showAllVideos ? "Show top 3 videos" : "View all tutorials"}
                       >
                         <Text style={styles.showMoreVideosText}>
                           {showAllVideos
@@ -617,11 +647,34 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                   </>
                 ) : (
                   <View style={styles.emptyVideos}>
-                    <Text style={styles.emptyVideosText}>
-                      {isLoadingVideos
-                        ? 'Finding authentic cooking tutorials...'
-                        : 'No videos available for this recipe.'}
-                    </Text>
+                    {isLoadingVideos ? (
+                      <Text style={styles.emptyVideosText}>
+                        Finding authentic cooking tutorials...
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.emptyVideosTitle}>
+                          No matching tutorial found
+                        </Text>
+                        <Text style={styles.emptyVideosSubtitle}>
+                          No videos passed our strict culinary relevance criteria. You can search directly on YouTube.
+                        </Text>
+                        <Pressable
+                          style={styles.searchYoutubeBtn}
+                          onPress={() =>
+                            youtubeService.openYouTubeSearch(recipe.title || recipe.name)
+                          }
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Search ${recipe.title || recipe.name} on YouTube`}
+                        >
+                          <ExternalLink size={15} color={COLORS.textInverted} />
+                          <Text style={styles.searchYoutubeBtnText}>
+                            Search this recipe on YouTube
+                          </Text>
+                        </Pressable>
+                      </>
+                    )}
                   </View>
                 )}
               </View>
@@ -934,10 +987,41 @@ const styles = StyleSheet.create({
   emptyVideos: {
     padding: SPACING.xl,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyVideosText: {
     fontSize: TYPOGRAPHY.sizes.subtext,
     color: COLORS.textMuted,
+    textAlign: 'center',
+  },
+  emptyVideosTitle: {
+    fontSize: TYPOGRAPHY.sizes.body,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptyVideosSubtitle: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    maxWidth: 280,
+    marginBottom: SPACING.md,
+    lineHeight: 18,
+  },
+  searchYoutubeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    gap: 6,
+  },
+  searchYoutubeBtnText: {
+    color: COLORS.textInverted,
+    fontSize: TYPOGRAPHY.sizes.caption,
+    fontWeight: TYPOGRAPHY.weights.bold,
   },
   showMoreVideosBtn: {
     paddingVertical: 12,

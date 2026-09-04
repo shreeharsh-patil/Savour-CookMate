@@ -70,6 +70,9 @@ export interface Recipe {
   tags: string[];
   imageSearchQuery: string;
   youtubeSearchQuery: string;
+  youtubeUrl?: string;
+  youtubeVideoId?: string;
+  sourceUrl?: string;
 
   // UI and computed metadata
   tagline?: string;

@@ -28,6 +28,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
         pressed && styles.cardPressed,
       ]}
       onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={`Watch tutorial: ${video.title} by ${video.channelTitle}`}
     >
       <View style={styles.thumbnailWrapper}>
         <FoodImage
