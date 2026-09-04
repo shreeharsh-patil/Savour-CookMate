@@ -1,0 +1,79 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+} from "@nestjs/common";
+import { RecipesService } from "./recipes.service";
+import { FirebaseAuthGuard, Public, AuthenticatedUser } from "../../common/guards/firebase-auth.guard";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+
+@Controller("api/v1/recipes")
+@UseGuards(FirebaseAuthGuard)
+export class RecipesController {
+  constructor(private readonly recipesService: RecipesService) {}
+
+  @Public()
+  @Get()
+  async getRecipes(
+    @Query("cuisine") cuisine?: string,
+    @Query("mealType") mealType?: string,
+    @Query("diet") diet?: string,
+    @Query("difficulty") difficulty?: string,
+    @Query("maxTime") maxTime?: number,
+    @Query("search") search?: string,
+    @Query("sort") sort?: "popular" | "rating" | "time" | "newest",
+    @Query("page") page?: number,
+    @Query("limit") limit?: number
+  ) {
+    return this.recipesService.findAll({
+      cuisine,
+      mealType,
+      diet,
+      difficulty,
+      maxTime: maxTime ? Number(maxTime) : undefined,
+      search,
+      sort,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+    });
+  }
+
+  @Public()
+  @Get(":id")
+  async getRecipeDetail(@Param("id") id: string) {
+    return this.recipesService.findById(id);
+  }
+
+  @Post(":id/rate")
+  async rateRecipe(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { rating: number; comment?: string }
+  ) {
+    return this.recipesService.rateRecipe(
+      id,
+      user.userId,
+      body.rating,
+      body.comment,
+      user.displayName
+    );
+  }
+
+  @Post(":id/cook")
+  async recordCook(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { durationMinutes?: number; notes?: string }
+  ) {
+    return this.recipesService.recordCook(
+      id,
+      user.userId,
+      body.durationMinutes,
+      body.notes
+    );
+  }
+}
