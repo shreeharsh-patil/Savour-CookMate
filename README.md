@@ -1,222 +1,219 @@
 # Savour CookMate
 
-> An intelligent cooking companion that helps you discover recipes, cook with ingredients you already have, follow guided recipes, and find useful cooking videos.
+> A production-grade React Native cooking companion backed by NestJS, Fastify, MongoDB Atlas, and Gemini.
 
 ---
 
 ## 🍽️ Overview
 
-**Savour CookMate** is a production-grade React Native mobile cooking and recipe discovery application built with Expo. Taking cues from the information density, visual hierarchy, and frictionless UX of leading food applications like Swiggy and Zomato, Savour CookMate provides an editorial culinary experience centered on home cooks.
+**Savour CookMate** is a premium, consumer-oriented cooking and recipe discovery application. Taking cues from the visual hierarchy, information density, and frictionless experience of leading food apps such as Swiggy and Zomato, Savour CookMate turns home cooking into an effortless, delightful craft.
 
-Whether you are looking for dinner ideas based on leftover pantry staples, discovering regional cuisines (Indian, Goan, Italian, Pan-Asian, Mexican), following step-by-step cooking instructions with built-in timers, or watching authentic video tutorials, Savour CookMate is designed to make cooking effortless and delightful.
+### 🌟 Core Principle
 
----
-
-## ✨ Key Features
-
-### 1. 🔍 Natural Language Food Discovery
-- Search recipes using conversational queries such as:
-  - *"spicy chicken under 30 minutes"*
-  - *"easy paneer dinner"*
-  - *"high protein breakfast"*
-  - *"Goan seafood curry"*
-  - *"dinner using potato, onion, and eggs"*
-- Automatic interpretation of dietary preferences, cook times, cuisines, and key ingredients.
-
-### 2. 🥕 "Cook With What I Have" (Smart Pantry)
-- **Input Flexibility**: Type ingredients, tap popular kitchen staples, or write a conversational sentence.
-- **Deterministic Match Tiers**:
-  - **Cook Now**: Dishes where you have 100% of required ingredients.
-  - **Almost There**: Recipes missing only 1–2 items.
-  - **More Ideas**: Inspiring recipes utilizing your ingredients with a few fresh additions.
-- **One-Tap Shopping List**: Instantly add all missing ingredients for a recipe to your persistent shopping checklist.
-
-### 3. 🍳 Immersive Guided Cooking Mode
-- Full-screen distraction-free cooking interface designed for kitchen use.
-- Large, thumb-friendly **Previous** and **Next** controls.
-- Step-by-step guidance with timing cues, chef secrets, and masterclass tips.
-- Integrated digital timer with start, pause, reset, and **+1 Min** controls.
-- Haptic feedback upon timer completion and step navigation.
-- Automatic logging to your personal **Cooking History**.
-
-### 4. 📺 Curated Video Masterclasses
-- Integrated YouTube tutorials for each recipe.
-- Filter by language: English, Hindi, Marathi, Konkani, Tamil, Telugu, and quick vs. detailed tutorials.
-- Direct native app deep-linking and in-app video playback.
-
-### 5. 📚 Personal Recipe Vault & Collections
-- Save favorite recipes with instant bookmarking.
-- Organize recipes into curated collections: *Want to Try*, *Quick Meals*, *Breakfast*, *Healthy*, *Favorites*, or custom collections.
-- Full offline support with persistent local storage.
-
-### 6. 👤 Personalized Preferences & Sync
-- Customize diet: Vegetarian, Non-Vegetarian, Eggetarian, Vegan.
-- Cooking experience: Beginner, Intermediate, Master Chef.
-- Spice tolerance: Mild, Medium, Hot, Fiery.
-- Seamless authentication with Google OAuth, Email/Password, or instant Guest Chef mode.
+> **AI understands.** (Gemini extracts search intent, normalizes ingredients, suggests substitutes, and assists during cooking)  
+> **Backend decides.** (NestJS evaluates deterministic match percentages, dietary rules, and ranking formulas)  
+> **MongoDB remembers.** (MongoDB Atlas persists stable recipes, pantry inventories, favorites, shopping lists, and reviews)  
+> **React Native presents.** (Expo, Reanimated, and TanStack Query deliver smooth, high-density, native mobile experiences)
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## 🏗️ System Architecture
+
+```
+                       ┌─────────────────────────┐
+                       │   React Native (Expo)   │
+                       │   TanStack Query + UI   │
+                       └────────────┬────────────┘
+                                    │ HTTP / REST (/api/v1/...)
+                                    ▼
+                       ┌─────────────────────────┐
+                       │   NestJS API (Fastify)  │
+                       │  Guards, Zod, Services  │
+                       └─────┬──────────────┬────┘
+                             │              │
+        ┌────────────────────┴──┐        ┌──┴──────────────────────┐
+        ▼                       ▼        ▼                         ▼
+┌───────────────┐     ┌───────────────┐ ┌───────────────┐ ┌─────────────────┐
+│ MongoDB Atlas │     │  Gemini API   │ │  YouTube API  │ │ Firebase Admin  │
+│ (Mongoose DB) │     │ (Intent & AI) │ │ (Video Proxy) │ │ (Auth & Tokens) │
+└───────────────┘     └───────────────┘ └───────────────┘ └─────────────────┘
+```
+
+> [!IMPORTANT]
+> **Zero Client Secret Exposure**: React Native never connects directly to MongoDB Atlas. MongoDB URIs, Gemini API keys, YouTube API keys, and Firebase Admin service credentials are strictly managed server-side.
+
+---
+
+## 📁 Repository Structure
 
 ```
 savour-cookmate/
-├── app/                  # Expo Router file-based screens & navigation
-│   ├── _layout.tsx       # Root layout, providers & global modals
-│   └── (tabs)/           # Native bottom tab navigator
-│       ├── _layout.tsx   # Tab bar configuration
-│       ├── index.tsx     # Home food discovery feed
-│       ├── explore.tsx   # Search & exploration filters
-│       ├── pantry.tsx    # "Cook With What I Have" kitchen
-│       ├── saved.tsx     # Recipe vault & collections
-│       └── profile.tsx   # Profile & taste preferences
-├── components/           # Reusable native UI components
-│   ├── ActiveCookingSheet.tsx # Guided cooking overlay
-│   ├── AuthModal.tsx          # Google & Email authentication
-│   ├── CompactRecipeCard.tsx  # Horizontal rail cards
-│   ├── CookingStep.tsx        # Recipe step instruction
-│   ├── EmptyState.tsx         # Clean empty state view
-│   ├── ErrorState.tsx         # User-friendly error message
-│   ├── FoodCategoryRail.tsx   # "What's on your mind?" circular rail
-│   ├── FoodImage.tsx          # Cached image component with fallback
-│   ├── HomeHeader.tsx         # App wordmark & user avatar
-│   ├── IngredientList.tsx     # Serving scaler & pantry indicators
-│   ├── LoadingSkeleton.tsx    # Smooth skeleton loaders
-│   ├── OnboardingModal.tsx    # First-run personalization
-│   ├── PantryMatchCard.tsx    # Pantry match tier card
-│   ├── PreferenceSelector.tsx # Reusable taste selector
-│   ├── RecipeCard.tsx         # Primary feed recipe card
-│   ├── RecipeDetailModal.tsx  # Full recipe detail sheet
-│   ├── RecipeHero.tsx         # Hero spotlight banner
-│   ├── RecipeSearch.tsx       # Natural language search input
-│   ├── ShoppingListModal.tsx  # Persistent shopping list
-│   ├── Toast.tsx              # Floating feedback notification
-│   ├── VideoCard.tsx          # YouTube video tutorial card
-│   └── YouTubePlayerModal.tsx # Video player overlay
-├── constants/            # Design system, brand & categories
-│   ├── brand.ts          # Centralized product name & metadata
-│   ├── categories.ts     # Curated categories & photographic imagery
-│   └── theme.ts          # 8pt spacing grid, coral palette (#FF5A3C)
-├── services/             # API & persistence layer
-│   ├── apiClient.ts      # Resilient network client with retries & cache
-│   ├── recipeService.ts  # Recipe discovery & pantry orchestrator
-│   ├── supabaseService.ts# Supabase auth & persistent sync
-│   └── youtubeService.ts # Video search & deep-linking
-├── store/                # State management
-│   └── useAppStore.ts    # Zustand store with async storage persistence
-├── types/                # Strict TypeScript interfaces
-│   └── index.ts          # Core domain models
-├── utils/                # Pure business logic & formatters
-│   ├── formatters.ts     # Cook time, rating, calorie formatters
-│   ├── pantryMatcher.ts  # Deterministic ingredient matcher
-│   └── recipeValidator.ts# Strict JSON schema validator
-└── server.ts             # Backend API proxy server (Express)
+├── app/                            # Expo Router screens (file-based navigation)
+│   ├── _layout.tsx                 # Root layout with QueryClientProvider & global sheets
+│   └── (tabs)/                     # Bottom tab navigator
+│       ├── _layout.tsx             # Tab bar configuration & badges
+│       ├── index.tsx               # Discovery Home feed (Swiggy/Zomato style)
+│       ├── explore.tsx             # Natural language search & curated rails
+│       ├── pantry.tsx              # "Cook With What I Have" kitchen screen
+│       ├── saved.tsx               # Personal recipe vault & custom collections
+│       └── profile.tsx             # Culinary preferences & cooking history
+├── backend/                        # Production NestJS + Fastify API server
+│   ├── package.json                # Backend dependency manifest
+│   ├── tsconfig.json               # Backend TypeScript configuration
+│   └── src/
+│       ├── main.ts                 # Fastify bootstrap with Helmet, CORS & Rate Limiting
+│       ├── app.module.ts           # Root NestJS module & bootstrap seeder
+│       ├── config/
+│       │   └── env.config.ts       # Zod-validated environment configuration
+│       ├── database/
+│       │   ├── database.module.ts  # Mongoose feature registry
+│       │   ├── seed.ts             # Authentic seed recipes & master ingredients
+│       │   └── schemas/            # Mongoose document schemas & indexes
+│       │       ├── user.schema.ts
+│       │       ├── user-preferences.schema.ts
+│       │       ├── recipe.schema.ts
+│       │       ├── ingredient.schema.ts
+│       │       ├── pantry-item.schema.ts
+│       │       ├── favorite.schema.ts
+│       │       ├── shopping-item.schema.ts
+│       │       ├── cooking-history.schema.ts
+│       │       ├── review.schema.ts
+│       │       ├── recommendation-event.schema.ts
+│       │       ├── youtube-cache.schema.ts
+│       │       ├── ai-cache.schema.ts
+│       │       └── search-history.schema.ts
+│       ├── common/
+│       │   ├── guards/             # Firebase JWT verification & guest guard
+│       │   ├── filters/            # Production structured exception filter
+│       │   └── decorators/         # @CurrentUser() parameter decorator
+│       └── modules/
+│           ├── auth/               # Firebase session sync & guest token generator
+│           ├── users/              # Preferences & profile stats
+│           ├── recipes/            # MongoDB recipe pagination, filters & real ratings
+│           ├── ingredients/        # Ingredient catalog & normalization
+│           ├── pantry/             # Kitchen inventory & smart sections
+│           ├── search/             # MongoDB Atlas text search & Gemini intent parsing
+│           ├── recommendations/    # Deterministic 6-factor recommendation engine
+│           ├── favorites/          # Collections & bookmarks
+│           ├── shopping/           # Shopping list & 1-tap transfer to kitchen
+│           ├── history/            # Cooking session logger & analytics
+│           ├── youtube/            # Curated tutorial search with anti-mukbang filters
+│           └── gemini/             # Structured intent parsing, substitutes & advice
+├── components/                     # Reusable native UI components
+│   ├── ActiveCookingSheet.tsx      # Full-screen guided cooking mode
+│   ├── AuthModal.tsx               # Google OAuth, Email/Pass, & Guest mode
+│   ├── FoodImage.tsx               # High-performance Expo Image with cache
+│   ├── RecipeCard.tsx              # High-density food card with real ratings
+│   ├── RecipeDetailModal.tsx       # Comprehensive recipe detail sheet
+│   └── ShoppingListModal.tsx       # Persistent shopping checklist
+├── features/                       # TanStack Query server-state hooks
+│   ├── recipes/useRecipes.ts
+│   ├── pantry/usePantry.ts
+│   ├── search/useSearch.ts
+│   ├── recommendations/useRecommendations.ts
+│   ├── favorites/useFavorites.ts
+│   ├── shopping/useShopping.ts
+│   ├── cooking/useCooking.ts
+│   ├── profile/useProfile.ts
+│   └── youtube/useYouTube.ts
+├── services/
+│   ├── apiClient.ts                # Resilient mobile HTTP client with Bearer auth
+│   ├── api.ts                      # Centralized typed endpoint client
+│   ├── recipeService.ts            # Client-to-MongoDB recipe mapper
+│   └── youtubeService.ts           # Deep-linking & video proxy
+├── store/
+│   └── useAppStore.ts              # Zustand store strictly for local UI & cooking session
+└── types/
+    └── index.ts                    # Core TypeScript domain models
 ```
-
-### Core Technologies
-- **Mobile Framework**: [React Native](https://reactnative.dev/) & [Expo](https://expo.dev/) (SDK 52+)
-- **Routing**: [Expo Router](https://docs.expo.dev/router/introduction/)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
-- **Styling**: React Native StyleSheet, 8pt spacing system, appetizing palette (`#FF5A3C` coral)
-- **Local Persistence**: `@react-native-async-storage/async-storage`
-- **Backend Infrastructure**:
-  - Express server (`server.ts`) hosting API routes
-  - Real Gemini API (`@google/genai`) for structured recipe discovery & natural language ingredient extraction
-  - YouTube Data API v3 proxy with video ranking and curated catalog fallback
-  - Supabase client (`@supabase/supabase-js`) for cloud synchronization and multi-tier caching
 
 ---
 
-## 🔒 Security & API Architecture
+## 🚀 API Endpoints (`/api/v1/...`)
 
-All sensitive API keys remain strictly **server-side**:
-
-```
-[ React Native Mobile App ]
-           │
-           ▼ (HTTP JSON API on port 3000)
-[ Savour Backend Server (server.ts) ]
-    ├── Gemini 3.8-Flash API (Secure server-side key)
-    ├── YouTube Data API v3 (Secure server-side key)
-    └── Supabase Cache & Auth (Server-side key)
-```
-
-No Google or YouTube API credentials are baked into client bundles.
+| Method | Endpoint | Description | Auth Required |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/verify` | Syncs verified Firebase JWT with MongoDB `users` collection | Yes |
+| `GET` | `/api/v1/auth/me` | Retrieves current authenticated profile | Yes |
+| `POST` | `/api/v1/auth/guest` | Creates an anonymous guest chef session | No |
+| `GET` | `/api/v1/recipes` | Paginated recipes with cuisine, diet, difficulty & time filters | No |
+| `GET` | `/api/v1/recipes/:id` | Full recipe detail with ingredients, steps, and real reviews | No |
+| `POST` | `/api/v1/recipes/:id/rate` | Submits real user rating & comment (recomputes aggregate) | Yes |
+| `POST` | `/api/v1/recipes/:id/cook` | Records cooking completion & increments cook count | Yes |
+| `POST` | `/api/v1/search` | Atlas search + conversational intent parsing via Gemini | No |
+| `GET` | `/api/v1/search/autocomplete`| Substring prefix search for dish names | No |
+| `GET` | `/api/v1/recommendations` | Deterministic recommendation engine (40% match, 20% pref, etc.) | Yes |
+| `POST` | `/api/v1/recommendations/event`| Tracks recommendation engagement events for ranking affinity | Yes |
+| `GET` | `/api/v1/pantry` | User pantry items grouped by Available, Low Stock, Expiring Soon | Yes |
+| `POST` | `/api/v1/pantry` | Adds an item with quantity, unit, and optional expiration date | Yes |
+| `PUT` | `/api/v1/pantry/:id` | Updates quantity, stock flag, or expiry date | Yes |
+| `DELETE`| `/api/v1/pantry/:id` | Removes item from kitchen inventory | Yes |
+| `GET` | `/api/v1/pantry/smart-sections` | Smart sections: *Cook Without Shopping*, *Use Soon*, *Missing 1* | Yes |
+| `GET` | `/api/v1/favorites` | Saved recipes by collection (*Want to Try*, *Quick Meals*, etc.) | Yes |
+| `POST` | `/api/v1/favorites/toggle` | Toggles recipe bookmark status | Yes |
+| `GET` | `/api/v1/shopping-list` | Persistent shopping items | Yes |
+| `POST` | `/api/v1/shopping-list/add-missing` | Adds all missing recipe ingredients with 1 tap | Yes |
+| `POST` | `/api/v1/shopping-list/move-to-pantry` | Transfers checked shopping items into Kitchen Inventory | Yes |
+| `GET` | `/api/v1/history` | User cooking history log | Yes |
+| `GET` | `/api/v1/preferences` | User taste preferences (diet, spice, cuisines, time limit) | Yes |
+| `PUT` | `/api/v1/preferences` | Updates taste preferences | Yes |
+| `GET` | `/api/v1/youtube` | Tutorials filtered for quality, duration, and language | No |
+| `POST` | `/api/v1/ai/substitutions` | Practical ingredient substitutions with ratios | No |
+| `POST` | `/api/v1/ai/advice` | Real-time chef advice for the active cooking step | No |
 
 ---
 
-## 🚀 Getting Started
+## 🎯 Deterministic Recommendation Engine
 
-### Prerequisites
-- **Node.js**: v18.0.0 or higher
-- **npm** or **bun**
-- **Expo Go** app installed on your iOS or Android device (optional, for physical device testing)
+Recommendations are calculated deterministically on the NestJS backend:
 
-### 1. Clone & Install
-```bash
-git clone https://github.com/shreeharsh-patil/Savour-CookMate.git
-cd Savour-CookMate
-npm install
-```
+$$\text{Score} = \text{Match (40\%)} + \text{Preferences (20\%)} + \text{Time (15\%)} + \text{Diet (10\%)} + \text{History (10\%)} + \text{Popularity (5\%)}$$
 
-### 2. Configure Environment Variables
-Copy `.env.example` to `.env`:
+* **MAKE NOW**: 100% of required ingredients available in the user's pantry.
+* **ALMOST THERE**: Missing only 1–2 ingredients.
+* **GOOD MATCH**: High ingredient overlap ( $\ge 50\%$ match).
+* **WORTH SHOPPING FOR**: Great recipe matching preferences with shopping list integration.
+
+---
+
+## 🛠️ Getting Started
+
+### 1. Environment Configuration
+
+Copy `.env.example` to `.env` and provide your credentials:
+
 ```bash
 cp .env.example .env
 ```
 
-Set the following variables in `.env`:
-```env
-# Backend API Keys (Required for live recipe generation)
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# YouTube Data API v3 (Optional; curated catalog fallback provided)
-YOUTUBE_API_KEY=your_youtube_api_key_here
-
-# Supabase (Optional; offline storage fallback provided)
-SUPABASE_URL=your_supabase_url_here
-SUPABASE_ANON_KEY=your_supabase_anon_key_here
-
-# Server Port
-PORT=3000
+Key environment variables:
+```ini
+MONGODB_URI="mongodb+srv://<user>:<password>@cluster.mongodb.net/savour-cookmate?retryWrites=true&w=majority"
+GEMINI_API_KEY="your_gemini_api_key_here"
+YOUTUBE_API_KEY="your_youtube_api_key_here"
+FIREBASE_PROJECT_ID="your-firebase-project"
+FIREBASE_CLIENT_EMAIL="firebase-adminsdk@your-project.iam.gserviceaccount.com"
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+EXPO_PUBLIC_API_URL="http://localhost:3000"
 ```
 
-### 3. Start the Backend API Server
+### 2. Run the NestJS Backend
+
 ```bash
-npm run server
+npm run backend
 ```
-The server will start on `http://localhost:3000`.
+*The Fastify server starts on `http://localhost:3000` and automatically seeds initial authentic recipes and master ingredients if the database is empty.*
 
-### 4. Start the Mobile Application
-In a separate terminal:
+### 3. Run the React Native Mobile App
+
 ```bash
 npm start
 ```
+*Press `a` for Android Emulator, `i` for iOS Simulator, or scan the QR code with the Expo Go mobile app.*
 
-Press:
-- **`a`** to open in Android Emulator
-- **`i`** to open in iOS Simulator
-- **`w`** to open in Web browser
-- Or scan the QR code with **Expo Go** on your physical phone!
+### 4. Run TypeScript Type Check
 
----
-
-## 🗄️ Database Setup (Optional)
-
-If using Supabase for cloud sync across devices, run the provided SQL schema in your Supabase SQL Editor:
-- Schema location: `src/services/supabaseSchema.sql`
-
-Tables created:
-- `user_profiles`: User preferences, dietary requirements, spice tolerance
-- `saved_recipes`: Bookmarked recipes with tags
-- `pantry_items`: Kitchen inventory
-- `cooking_history`: Completed recipes with ratings and timestamps
-- `recipe_cache`: 7-day TTL caching for high throughput and reduced quota usage
-- `youtube_cache`: 7-day TTL caching for YouTube search queries
-
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
+```bash
+npm run lint
+```
+*Verifies both the Expo mobile app and the NestJS backend with zero errors.*
