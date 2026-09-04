@@ -35,5 +35,4 @@ export class Ingredient {
 
 export const IngredientSchema = SchemaFactory.createForClass(Ingredient);
 
-IngredientSchema.index({ aliases: 1 });
 IngredientSchema.index({ name: "text", normalizedName: "text", aliases: "text" });

@@ -611,9 +611,9 @@ export async function seedDatabaseIfEmpty(
           instructions: (r as any).instructions || r.steps?.map((s) => s.instruction) || [],
           provider: "curated",
           lastSyncedAt: new Date(),
-          popularityScore: 10,
+          popularityScore: 0,
         };
-        await recipeModel.findOneAndUpdate({ slug: r.slug }, withDefaults, { upsert: true, new: true });
+        await recipeModel.findOneAndUpdate({ slug: r.slug }, withDefaults, { upsert: true, returnDocument: 'after' });
       }
       console.log(`Seeded ${INITIAL_RECIPES.length} recipes.`);
     }
@@ -622,7 +622,7 @@ export async function seedDatabaseIfEmpty(
     if (ingredientCount === 0) {
       console.log("Seeding master ingredients catalog into MongoDB Atlas...");
       for (const ing of INITIAL_INGREDIENTS) {
-        await ingredientModel.findOneAndUpdate({ normalizedName: ing.normalizedName }, ing, { upsert: true, new: true });
+        await ingredientModel.findOneAndUpdate({ normalizedName: ing.normalizedName }, ing, { upsert: true, returnDocument: 'after' });
       }
       console.log(`Seeded ${INITIAL_INGREDIENTS.length} master ingredients.`);
     }

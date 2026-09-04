@@ -1,5 +1,13 @@
+import * as dns from "dns";
 import { z } from "zod";
 import * as dotenv from "dotenv";
+
+// Fallback DNS servers to reliably resolve MongoDB Atlas SRV records (_mongodb._tcp)
+try {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch {
+  // Ignore in restricted environments
+}
 
 dotenv.config();
 

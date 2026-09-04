@@ -25,6 +25,16 @@ export class AnalyticsService {
   ): Promise<number> {
     if (!recipeId) return 0;
 
+    // Server-side validation: ensure recipe exists before accepting analytics events
+    let targetRecipe = await this.recipeModel.findById(recipeId);
+    if (!targetRecipe) {
+      targetRecipe = await this.recipeModel.findOne({ externalId: recipeId });
+    }
+    if (!targetRecipe) {
+      this.logger.warn(`Rejected event for non-existent recipeId '${recipeId}'`);
+      return 0;
+    }
+
     const incField =
       eventType === "view"
         ? "recipeViews"
@@ -35,7 +45,7 @@ export class AnalyticsService {
         : "cookingCompletions";
 
     const doc = await this.analyticsModel.findOneAndUpdate(
-      { recipeId },
+      { recipeId: targetRecipe._id.toString() },
       {
         $inc: { [incField]: 1 },
         $set: { lastUpdated: new Date() },
@@ -53,12 +63,16 @@ export class AnalyticsService {
     doc.popularityScore = score;
     await doc.save();
 
-    // Also synchronize popularityScore to Recipe collection for fast indexed queries
-    await this.recipeModel.findByIdAndUpdate(recipeId, {
-      $set: { popularityScore: score },
-    });
+    // Synchronize popularityScore to Recipe collection for fast indexed queries
+    targetRecipe.popularityScore = score;
+    await targetRecipe.save();
 
     return score;
+  }
+
+  async getRecipePopularity(recipeId: string): Promise<number> {
+    const doc = await this.analyticsModel.findOne({ recipeId }).lean();
+    return doc?.popularityScore || 0;
   }
 
   async getPopularRecipes(limit = 10) {

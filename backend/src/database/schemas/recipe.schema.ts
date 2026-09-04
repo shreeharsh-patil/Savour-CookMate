@@ -198,4 +198,10 @@ export const RecipeSchema = SchemaFactory.createForClass(Recipe);
 RecipeSchema.index({ name: "text", description: "text", searchKeywords: "text", cuisine: "text" });
 RecipeSchema.index({ cuisine: 1, totalTime: 1 });
 RecipeSchema.index({ status: 1, cookCount: -1 });
-RecipeSchema.index({ "ingredients.normalizedName": 1 });
+RecipeSchema.index({ status: 1, popularityScore: -1 });
+RecipeSchema.index({ status: 1, provider: 1, externalId: 1 });
+RecipeSchema.index({ status: 1, "ingredients.normalizedName": 1 });
+RecipeSchema.index({ status: 1, category: 1 });
+RecipeSchema.index({ status: 1, cuisine: 1 });
+RecipeSchema.index({ status: 1, dietaryTags: 1 });
+
