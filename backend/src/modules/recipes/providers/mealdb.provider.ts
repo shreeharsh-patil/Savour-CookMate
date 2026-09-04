@@ -5,6 +5,7 @@ import {
   NormalizedIngredientItem,
   NormalizedStepItem,
 } from "./recipe-provider.interface";
+import { extractYouTubeVideoId } from "../../youtube/youtube.utils";
 
 @Injectable()
 export class MealDbRecipeProvider implements RecipeProvider {
@@ -103,6 +104,10 @@ export class MealDbRecipeProvider implements RecipeProvider {
 
     const slug = `${meal.strMeal.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${meal.idMeal}`;
 
+    const rawYoutube = typeof meal.strYoutube === "string" && meal.strYoutube.trim() ? meal.strYoutube.trim() : undefined;
+    const youtubeVideoId = extractYouTubeVideoId(rawYoutube) || undefined;
+    const rawSource = typeof meal.strSource === "string" && meal.strSource.trim() ? meal.strSource.trim() : undefined;
+
     return {
       externalId: meal.idMeal,
       provider: this.providerName,
@@ -116,8 +121,10 @@ export class MealDbRecipeProvider implements RecipeProvider {
       ingredients,
       instructions: instructionLines,
       steps,
-      youtubeSearchQuery: meal.strYoutube ? undefined : `${meal.strMeal} recipe tutorial`,
-      sourceUrl: meal.strSource || meal.strYoutube || undefined,
+      youtubeSearchQuery: rawYoutube ? undefined : `${meal.strMeal} recipe tutorial`,
+      youtubeUrl: rawYoutube,
+      youtubeVideoId,
+      sourceUrl: rawSource,
       prepTime: 15,
       cookTime: 25,
       totalTime: 40,

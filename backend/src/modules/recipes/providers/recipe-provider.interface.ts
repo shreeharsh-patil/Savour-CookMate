@@ -28,6 +28,8 @@ export interface NormalizedRecipe {
   instructions: string[];
   steps: NormalizedStepItem[];
   youtubeSearchQuery?: string;
+  youtubeUrl?: string;
+  youtubeVideoId?: string;
   sourceUrl?: string;
   totalTime: number;
   prepTime: number;

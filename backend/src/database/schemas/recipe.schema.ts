@@ -145,6 +145,12 @@ export class Recipe {
   @Prop({ type: String })
   youtubeSearchQuery?: string;
 
+  @Prop({ type: String })
+  youtubeUrl?: string;
+
+  @Prop({ type: String, index: true })
+  youtubeVideoId?: string;
+
   @Prop({ type: [RecipeSubstitutionSchema], default: [] })
   substitutions: RecipeSubstitution[];
 

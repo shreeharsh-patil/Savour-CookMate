@@ -26,23 +26,29 @@ export class YouTubeVideoItem {
   @Prop({ type: String, required: true })
   embedUrl: string;
 
-  @Prop({ type: String, required: true })
-  duration: string;
+  @Prop({ type: String, default: "" })
+  duration?: string;
 
   @Prop({ type: Number, default: 0 })
-  durationSeconds: number;
+  durationSeconds?: number;
 
   @Prop({ type: String, default: "" })
-  views: string;
+  views?: string;
 
   @Prop({ type: Number, default: 0 })
-  viewCount: number;
+  viewCount?: number;
 
-  @Prop({ type: String, default: "English" })
-  language: string;
+  @Prop({ type: String, default: "" })
+  language?: string;
+
+  @Prop({ type: String, default: "youtube" })
+  provider?: string;
 
   @Prop({ type: Number, default: 0 })
-  score: number;
+  score?: number;
+
+  @Prop({ type: Number, default: 0 })
+  relevanceScore?: number;
 }
 
 export const YouTubeVideoItemSchema = SchemaFactory.createForClass(YouTubeVideoItem);
@@ -55,8 +61,17 @@ export class YouTubeCache {
   @Prop({ type: String, index: true })
   recipeId?: string;
 
+  @Prop({ type: String, default: "" })
+  recipeName?: string;
+
+  @Prop({ type: String, default: "youtube" })
+  provider?: string;
+
   @Prop({ type: String, default: "English" })
   language: string;
+
+  @Prop({ type: String, default: "recommended" })
+  filter?: string;
 
   @Prop({ type: [YouTubeVideoItemSchema], default: [] })
   videos: YouTubeVideoItem[];

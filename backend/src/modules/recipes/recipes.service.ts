@@ -56,6 +56,9 @@ export class RecipesService {
             existing.instructions = item.instructions;
             existing.steps = item.steps as any;
           }
+          if (!existing.youtubeUrl && item.youtubeUrl) existing.youtubeUrl = item.youtubeUrl;
+          if (!existing.youtubeVideoId && item.youtubeVideoId) existing.youtubeVideoId = item.youtubeVideoId;
+          if (!existing.sourceUrl && item.sourceUrl) existing.sourceUrl = item.sourceUrl;
           await existing.save();
           savedDocs.push(existing.toObject());
         } else {

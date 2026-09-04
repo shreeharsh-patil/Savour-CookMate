@@ -17,6 +17,10 @@ const envSchema = z.object({
   MONGODB_URI: z.string().default("mongodb://127.0.0.1:27017/savour-cookmate"),
   GEMINI_API_KEY: z.string().optional().default(""),
   YOUTUBE_API_KEY: z.string().optional().default(""),
+  INVIDIOUS_INSTANCES: z
+    .string()
+    .optional()
+    .default("https://inv.nadeko.net,https://invidious.nerdvpn.de,https://yewtu.be,https://invidious.projectsegfau.lt"),
   USDA_API_KEY: z.string().optional().default("DEMO_KEY"),
   FIREBASE_PROJECT_ID: z.string().optional().default(""),
   FIREBASE_CLIENT_EMAIL: z.string().optional().default(""),

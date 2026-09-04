@@ -42,7 +42,9 @@ describe("MealDbRecipeProvider - Meal Normalization & Step Extraction", () => {
     assert.equal(normalized.name, "Teriyaki Chicken Casserole");
     assert.equal(normalized.category, "Chicken");
     assert.equal(normalized.cuisine, "Japanese");
-    assert.equal(normalized.sourceUrl, "https://www.youtube.com/watch?v=4aZr5hZXP_s");
+    assert.equal(normalized.youtubeUrl, "https://www.youtube.com/watch?v=4aZr5hZXP_s");
+    assert.equal(normalized.youtubeVideoId, "4aZr5hZXP_s");
+    assert.equal(normalized.sourceUrl, undefined); // strSource was not in rawMeal, must NOT use strYoutube
     assert.ok(normalized.dietaryTags.includes("Non-Vegetarian"));
 
     // Ingredients parsing
