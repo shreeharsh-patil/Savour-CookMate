@@ -1,48 +1,60 @@
 import React, { useState } from 'react';
-import { Image, StyleSheet, View, ActivityIndicator, ImageStyle, StyleProp } from 'react-native';
+import { StyleSheet, View, ImageStyle, StyleProp } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { COLORS } from '../constants/theme';
 
 interface FoodImageProps {
   source: { uri: string } | number;
+  thumbnailSource?: { uri: string };
   style?: StyleProp<ImageStyle>;
-  contentFit?: 'cover' | 'contain';
+  contentFit?: 'cover' | 'contain' | 'fill';
   borderRadius?: number;
+  priority?: 'low' | 'normal' | 'high';
 }
+
+const FALLBACK_CULINARY_IMAGE =
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80';
+
+// Universal warm food blurhash for instant visual feedback
+const FOOD_BLURHASH = 'L5PZfSi_.AyE_3t7t7R**0o#DgR4';
 
 export const FoodImage: React.FC<FoodImageProps> = ({
   source,
+  thumbnailSource,
   style,
+  contentFit = 'cover',
   borderRadius = 0,
+  priority = 'normal',
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  const fallbackUri =
-    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=800&q=80';
-
-  const imageSource =
-    hasError || (typeof source === 'object' && !source.uri)
-      ? { uri: fallbackUri }
-      : source;
+  const resolvedSource = React.useMemo(() => {
+    if (hasError) {
+      return { uri: FALLBACK_CULINARY_IMAGE };
+    }
+    if (typeof source === 'object' && (!source.uri || source.uri.trim() === '')) {
+      if (thumbnailSource && thumbnailSource.uri) {
+        return thumbnailSource;
+      }
+      return { uri: FALLBACK_CULINARY_IMAGE };
+    }
+    return source;
+  }, [source, thumbnailSource, hasError]);
 
   return (
     <View style={[styles.container, { borderRadius }, style]}>
-      <Image
-        source={imageSource}
+      <ExpoImage
+        source={resolvedSource}
+        placeholder={{ blurhash: FOOD_BLURHASH }}
+        contentFit={contentFit}
+        transition={200}
+        cachePolicy="memory-disk"
+        priority={priority}
         style={[styles.image, { borderRadius }]}
-        resizeMode="cover"
-        onLoadStart={() => setIsLoading(true)}
-        onLoadEnd={() => setIsLoading(false)}
         onError={() => {
-          setHasError(true);
-          setIsLoading(false);
+          if (!hasError) setHasError(true);
         }}
       />
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
-        </View>
-      )}
     </View>
   );
 };
@@ -56,11 +68,5 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(250, 248, 245, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

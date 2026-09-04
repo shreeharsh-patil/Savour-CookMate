@@ -69,11 +69,15 @@ export const RecipeHero: React.FC<RecipeHeroProps> = ({
 
           {/* Quick Metrics */}
           <View style={styles.metricsRow}>
-            <View style={styles.metricItem}>
-              <Star size={13} color="#FBBF24" fill="#FBBF24" />
-              <Text style={styles.metricValue}>{formatRating(recipe.ratingEstimate)}</Text>
-            </View>
-            <View style={styles.metricDivider} />
+            {recipe.averageRating && recipe.averageRating > 0 ? (
+              <>
+                <View style={styles.metricItem}>
+                  <Star size={13} color="#FBBF24" fill="#FBBF24" />
+                  <Text style={styles.metricValue}>{formatRating(recipe.averageRating)}</Text>
+                </View>
+                <View style={styles.metricDivider} />
+              </>
+            ) : null}
             <View style={styles.metricItem}>
               <Clock size={13} color={COLORS.textSecondary} />
               <Text style={styles.metricValue}>

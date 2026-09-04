@@ -53,12 +53,14 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = ({
             ]}
           />
         </View>
-        <View style={styles.ratingBadge}>
-          <Star size={10} color="#FBBF24" fill="#FBBF24" />
-          <Text style={styles.ratingText}>
-            {formatRating(recipe.ratingEstimate)}
-          </Text>
-        </View>
+        {recipe.averageRating && recipe.averageRating > 0 ? (
+          <View style={styles.ratingBadge}>
+            <Star size={10} color="#FBBF24" fill="#FBBF24" />
+            <Text style={styles.ratingText}>
+              {formatRating(recipe.averageRating)}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.content}>

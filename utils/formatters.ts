@@ -12,18 +12,20 @@ export function formatCookTime(minutes: number): string {
   return `${minutes} mins`;
 }
 
-export function formatRating(rating?: number): string {
-  if (!rating || isNaN(rating)) return '4.8';
+export function formatRating(rating?: number | null): string | null {
+  if (rating === null || rating === undefined || isNaN(rating) || rating <= 0) {
+    return null;
+  }
   return rating.toFixed(1);
 }
 
-export function formatCalories(calories?: number): string {
-  if (!calories || isNaN(calories)) return '450 kcal';
+export function formatCalories(calories?: number): string | null {
+  if (!calories || isNaN(calories) || calories <= 0) return null;
   return `${calories} kcal`;
 }
 
-export function formatViewCount(count?: number): string {
-  if (!count) return '250K views';
+export function formatViewCount(count?: number): string | null {
+  if (!count || count <= 0) return null;
   if (count >= 1_000_000) {
     return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, '')}M views`;
   }

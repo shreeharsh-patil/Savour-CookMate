@@ -72,11 +72,13 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
           </Pressable>
         </View>
 
-        {/* Rating Floating Chip */}
-        <View style={styles.ratingChip}>
-          <Star size={12} color="#FBBF24" fill="#FBBF24" />
-          <Text style={styles.ratingText}>{formatRating(recipe.ratingEstimate)}</Text>
-        </View>
+        {/* Rating Floating Chip (Only real ratings shown) */}
+        {recipe.averageRating && recipe.averageRating > 0 ? (
+          <View style={styles.ratingChip}>
+            <Star size={12} color="#FBBF24" fill="#FBBF24" />
+            <Text style={styles.ratingText}>{formatRating(recipe.averageRating)}</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.content}>
