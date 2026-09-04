@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Playfair Display", Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --color-canvas: #FFFDF9;
+  --color-primary: #FF5A3C;
+  --color-charcoal: #171717;
+  --color-muted: #737373;
+}
+
+@layer base {
+  :root {
+    --bg-canvas: #FFFDF9;
+    --surface: #FFFFFF;
+    --primary: #FF5A3C;
+    --text-main: #171717;
+    --text-muted: #737373;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .font-serif {
+    font-family: "Playfair Display", Georgia, serif;
+  }
+}
+
+/* Custom Hide Scrollbar Utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Savor — Live Culinary Companion",
+  "description": "A premium cooking application powered by live Gemini recipe discovery and YouTube cooking guides, featuring Pantry intelligence and saved collections.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
