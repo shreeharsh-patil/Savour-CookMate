@@ -61,7 +61,35 @@ describe("GeminiService - Deterministic Hashing & Request Deduplication", () => 
     const [res1, res2] = await Promise.all([p1, p2]);
 
     assert.deepEqual(res1, res2);
-    assert.equal(res1.ingredientHash, "paneer|tomato");
+    assert.equal(typeof res1.ingredientHash, "string");
+    assert.equal(res1.ingredientHash.length, 64);
+  });
+
+  test("isolates cache keys strictly by dietary and allergy preferences", () => {
+    const service = new GeminiService(
+      mockAiCacheModel,
+      mockAiIngredientCacheModel,
+      mockRecipeModel,
+      ingredientsService,
+      mockMealDbProvider
+    );
+
+    const ing = ["pasta", "garlic", "olive oil"];
+
+    const key1 = service.buildCanonicalCookingKey(ing, { diet: "Vegetarian" });
+    const key2 = service.buildCanonicalCookingKey(ing, { diet: "Vegan" });
+    const key3 = service.buildCanonicalCookingKey(ing, { diet: "Vegetarian", allergies: ["gluten"] });
+    const key4 = service.buildCanonicalCookingKey(ing, { diet: "Vegetarian" }); // duplicate of key1
+
+    // Dietary preferences change the hash
+    assert.notEqual(key1.cacheKey, key2.cacheKey);
+
+    // Allergen restrictions change the hash
+    assert.notEqual(key1.cacheKey, key3.cacheKey);
+
+    // Identical preferences produce identical hash
+    assert.equal(key1.cacheKey, key4.cacheKey);
+    assert.equal(key1.cacheKey.length, 64);
   });
 
   test("returns empty suggestions gracefully when empty ingredient list is provided", async () => {

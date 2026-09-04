@@ -198,7 +198,8 @@ export class PantryService {
   async findDishesICanMake(
     userId: string,
     specificIngredients?: string[],
-    includeAi = true
+    includeAi = false,
+    preferences: Record<string, any> = {}
   ) {
     let ingredientNames: string[] = [];
 
@@ -214,12 +215,86 @@ export class PantryService {
         makeNow: [],
         almostThere: [],
         goodMatch: [],
+        moreIdeas: [],
         aiSuggestions: [],
         message: "No ingredients provided. Add ingredients to your kitchen first.",
       };
     }
 
-    const recipes = await this.recipeModel.find({ status: "published" }).lean();
+    // 1. Normalize and canonicalize ingredients
+    const normalizedList = Array.from(
+      new Set(
+        ingredientNames
+          .map((i) => this.ingredientsService.normalizeIngredientName(i))
+          .filter(Boolean)
+      )
+    );
+
+    // 2. Scalable candidate selection with index & lightweight projection
+    // Avoid unbounded full-table scan and avoid pulling heavy instructions/steps
+    const candidateRecipes = await this.recipeModel
+      .find(
+        {
+          status: "published",
+          "ingredients.normalizedName": { $in: normalizedList },
+        },
+        {
+          name: 1,
+          slug: 1,
+          description: 1,
+          imageUrl: 1,
+          thumbnailUrl: 1,
+          cuisine: 1,
+          category: 1,
+          prepTime: 1,
+          cookTime: 1,
+          totalTime: 1,
+          servings: 1,
+          dietaryTags: 1,
+          difficulty: 1,
+          averageRating: 1,
+          ratingCount: 1,
+          popularityScore: 1,
+          ingredients: 1,
+        }
+      )
+      .limit(100)
+      .lean();
+
+    // If candidate count is small (< 8), supplement with top published recipes
+    let recipes = candidateRecipes;
+    if (recipes.length < 8) {
+      const existingIds = new Set(recipes.map((r: any) => r._id.toString()));
+      const popularFallback = await this.recipeModel
+        .find(
+          { status: "published", _id: { $nin: Array.from(existingIds) } },
+          {
+            name: 1,
+            slug: 1,
+            description: 1,
+            imageUrl: 1,
+            thumbnailUrl: 1,
+            cuisine: 1,
+            category: 1,
+            prepTime: 1,
+            cookTime: 1,
+            totalTime: 1,
+            servings: 1,
+            dietaryTags: 1,
+            difficulty: 1,
+            averageRating: 1,
+            ratingCount: 1,
+            popularityScore: 1,
+            ingredients: 1,
+          }
+        )
+        .sort({ popularityScore: -1 })
+        .limit(20)
+        .lean();
+
+      recipes = [...recipes, ...popularFallback];
+    }
+
     const makeNow: any[] = [];
     const almostThere: any[] = [];
     const goodMatch: any[] = [];
@@ -254,11 +329,11 @@ export class PantryService {
         totalRequired: required.length,
       };
 
-      if (matchPct >= 95) {
+      if (matchPct >= 95 || missingNames.length === 0) {
         makeNow.push(enriched);
-      } else if (missingNames.length <= 2) {
+      } else if (missingNames.length <= 2 && matchPct >= 50) {
         almostThere.push(enriched);
-      } else if (matchPct >= 50) {
+      } else if (matchPct >= 40) {
         goodMatch.push(enriched);
       }
     }
@@ -267,11 +342,18 @@ export class PantryService {
     almostThere.sort((a, b) => b.matchPercentage - a.matchPercentage);
     goodMatch.sort((a, b) => b.matchPercentage - a.matchPercentage);
 
-    // Call Gemini only if requested and user has enough ingredients
+    // 3. Result Quality Evaluation & AI Threshold
+    // If makeNow + almostThere >= 3, verified real recipes are sufficient. Do NOT call Gemini.
+    const strongMatchesCount = makeNow.length + almostThere.length;
+    const shouldCallGemini =
+      includeAi === true
+        ? true
+        : strongMatchesCount < 3 && ingredientNames.length >= 2;
+
     let aiSuggestions: any[] = [];
-    if (includeAi) {
+    if (shouldCallGemini) {
       try {
-        const aiRes = await this.geminiService.cookWithWhatIHave(ingredientNames);
+        const aiRes = await this.geminiService.cookWithWhatIHave(ingredientNames, preferences);
         aiSuggestions = aiRes.suggestions || [];
       } catch {
         // Fallback without failing
@@ -282,8 +364,10 @@ export class PantryService {
       makeNow: makeNow.slice(0, 10),
       almostThere: almostThere.slice(0, 10),
       goodMatch: goodMatch.slice(0, 10),
+      moreIdeas: aiSuggestions,
       aiSuggestions,
       totalMatched: makeNow.length + almostThere.length + goodMatch.length,
+      aiTriggered: shouldCallGemini && aiSuggestions.length > 0,
     };
   }
 }

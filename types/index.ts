@@ -101,7 +101,7 @@ export interface PantryItem {
   addedAt: string;
 }
 
-export type PantryMatchGroup = 'MAKE NOW' | 'ALMOST THERE' | 'GOOD MATCH' | 'WORTH SHOPPING FOR';
+export type PantryMatchGroup = 'MAKE NOW' | 'ALMOST THERE' | 'GOOD MATCH' | 'WORTH SHOPPING FOR' | 'MORE IDEAS';
 
 export interface PantryRecipeRecommendation {
   recipe: Recipe;

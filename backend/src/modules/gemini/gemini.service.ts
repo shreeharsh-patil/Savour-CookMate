@@ -78,13 +78,59 @@ export class GeminiService {
   }
 
   /**
+   * Builds deterministic canonical cooking key combining sorted ingredients and normalized preferences.
+   * Dietary and allergen restrictions are strictly partitioned so caches never leak across preferences.
+   */
+  public buildCanonicalCookingKey(
+    rawIngredients: string[],
+    preferences: Record<string, any> = {}
+  ): { normalizedList: string[]; cacheKey: string } {
+    const normalizedList = Array.from(
+      new Set(
+        rawIngredients
+          .map((i) => this.ingredientsService.normalizeIngredientName(i))
+          .filter(Boolean)
+      )
+    ).sort();
+
+    const diet = (preferences.diet || preferences.dietary || "").toString().toLowerCase().trim();
+    const rawAllergies = Array.isArray(preferences.allergies)
+      ? preferences.allergies
+      : typeof preferences.allergies === "string"
+      ? [preferences.allergies]
+      : [];
+    const allergies = Array.from(
+      new Set(rawAllergies.map((a: any) => String(a).toLowerCase().trim()).filter(Boolean))
+    ).sort();
+    const maxCookingTime = preferences.maxCookingTime ? Number(preferences.maxCookingTime) : 0;
+    const cuisine = (preferences.cuisine || "").toString().toLowerCase().trim();
+    const spiceLevel = (preferences.spiceLevel || "").toString().toLowerCase().trim();
+
+    const canonicalObject = {
+      allergies,
+      cuisine,
+      diet,
+      ingredients: normalizedList,
+      maxCookingTime,
+      spiceLevel,
+    };
+
+    const cacheKey = crypto
+      .createHash("sha256")
+      .update(JSON.stringify(canonicalObject))
+      .digest("hex");
+
+    return { normalizedList, cacheKey };
+  }
+
+  /**
    * SIGNATURE FEATURE: "Cook With What I Have"
    * ONLY runs when user explicitly taps "Find dishes I can make".
-   * 1. Normalizes and sorts ingredients deterministically.
-   * 2. Checks MongoDB aiIngredientCache.
+   * 1. Normalizes and sorts ingredients + preferences deterministically.
+   * 2. Checks MongoDB aiIngredientCache using canonical key.
    * 3. Deduplicates concurrent in-flight requests.
    * 4. Structured compact Gemini request if uncached.
-   * 5. Matches real recipes in MongoDB or displays as "Suggested from your ingredients".
+   * 5. Matches real recipes in MongoDB or displays as "Based on your kitchen".
    */
   async cookWithWhatIHave(
     rawIngredients: string[],
@@ -98,29 +144,21 @@ export class GeminiService {
       };
     }
 
-    // 1. Normalize and sort ingredients to form deterministic key
-    const normalizedList = Array.from(
-      new Set(
-        rawIngredients
-          .map((i) => this.ingredientsService.normalizeIngredientName(i))
-          .filter(Boolean)
-      )
-    ).sort();
-
-    const ingredientHash = normalizedList.join("|");
+    // 1. Build canonical key combining sorted ingredients and preferences
+    const { normalizedList, cacheKey } = this.buildCanonicalCookingKey(rawIngredients, preferences);
 
     // 2. In-memory deduplication for identical concurrent requests
-    if (this.inFlightRequests.has(ingredientHash)) {
-      return this.inFlightRequests.get(ingredientHash)!;
+    if (this.inFlightRequests.has(cacheKey)) {
+      return this.inFlightRequests.get(cacheKey)!;
     }
 
-    const requestPromise = this.executeCookWithWhatIHave(normalizedList, ingredientHash, preferences);
-    this.inFlightRequests.set(ingredientHash, requestPromise);
+    const requestPromise = this.executeCookWithWhatIHave(normalizedList, cacheKey, preferences);
+    this.inFlightRequests.set(cacheKey, requestPromise);
 
     try {
       return await requestPromise;
     } finally {
-      this.inFlightRequests.delete(ingredientHash);
+      this.inFlightRequests.delete(cacheKey);
     }
   }
 
@@ -260,7 +298,7 @@ Do NOT generate fake ratings, fake reviews, calories, videos, or markdown backti
         reason: item.reason,
         missingImportantIngredients: item.missingImportantIngredients,
         isAiSuggestion: !matchedRecipe,
-        sourceTag: matchedRecipe ? "Verified Recipe" : "Suggested from your ingredients",
+        sourceTag: matchedRecipe ? "Verified Recipe" : "Based on your kitchen",
         matchedRecipe: matchedRecipe || undefined,
       });
     }

@@ -55,12 +55,13 @@ export class PantryController {
   @Post("find-dishes")
   async findDishes(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { ingredients?: string[]; includeAi?: boolean }
+    @Body() body: { ingredients?: string[]; includeAi?: boolean; preferences?: Record<string, any> }
   ) {
     return this.pantryService.findDishesICanMake(
       user.userId,
       body.ingredients,
-      body.includeAi !== undefined ? body.includeAi : true
+      body.includeAi === true,
+      body.preferences
     );
   }
 }
