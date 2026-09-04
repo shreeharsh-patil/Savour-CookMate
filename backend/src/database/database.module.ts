@@ -13,6 +13,9 @@ import { RecommendationEvent, RecommendationEventSchema } from "./schemas/recomm
 import { YouTubeCache, YouTubeCacheSchema } from "./schemas/youtube-cache.schema";
 import { AICache, AICacheSchema } from "./schemas/ai-cache.schema";
 import { SearchHistory, SearchHistorySchema } from "./schemas/search-history.schema";
+import { RecipeAnalytics, RecipeAnalyticsSchema } from "./schemas/recipe-analytics.schema";
+import { NutritionCache, NutritionCacheSchema } from "./schemas/nutrition-cache.schema";
+import { AIIngredientCache, AIIngredientCacheSchema } from "./schemas/ai-ingredient-cache.schema";
 
 const featureModels = [
   { name: User.name, schema: UserSchema },
@@ -28,6 +31,9 @@ const featureModels = [
   { name: YouTubeCache.name, schema: YouTubeCacheSchema },
   { name: AICache.name, schema: AICacheSchema },
   { name: SearchHistory.name, schema: SearchHistorySchema },
+  { name: RecipeAnalytics.name, schema: RecipeAnalyticsSchema },
+  { name: NutritionCache.name, schema: NutritionCacheSchema },
+  { name: AIIngredientCache.name, schema: AIIngredientCacheSchema },
 ];
 
 @Module({

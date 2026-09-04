@@ -112,11 +112,17 @@ export class Recipe {
   @Prop({ type: Number, default: 2 })
   servings: number;
 
+  @Prop({ type: String, default: "Main Course", index: true })
+  category: string;
+
   @Prop({ type: [RecipeIngredientSchema], default: [] })
   ingredients: RecipeIngredient[];
 
   @Prop({ type: [RecipeStepSchema], default: [] })
   steps: RecipeStep[];
+
+  @Prop({ type: [String], default: [] })
+  instructions: string[];
 
   @Prop({ type: RecipeNutritionSchema, default: () => ({ calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }) })
   nutrition: RecipeNutrition;
@@ -163,6 +169,21 @@ export class Recipe {
 
   @Prop({ type: String, default: "curated" })
   source: string;
+
+  @Prop({ type: String, default: "curated", index: true })
+  provider: string;
+
+  @Prop({ type: String, index: true })
+  externalId?: string;
+
+  @Prop({ type: String })
+  sourceUrl?: string;
+
+  @Prop({ type: Date, default: Date.now })
+  lastSyncedAt: Date;
+
+  @Prop({ type: Number, default: 0, index: true })
+  popularityScore: number;
 
   @Prop({ type: String, default: "published", index: true })
   status: string;

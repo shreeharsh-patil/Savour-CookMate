@@ -44,6 +44,33 @@ export class RecipesController {
   }
 
   @Public()
+  @Get("search")
+  async searchRecipes(@Query("q") query: string, @Query("limit") limit?: number) {
+    const recipes = await this.recipesService.searchRecipes(query, limit ? Number(limit) : 20);
+    return { recipes, total: recipes.length };
+  }
+
+  @Public()
+  @Get("home-feed")
+  async getHomeFeed() {
+    return this.recipesService.getHomeFeed();
+  }
+
+  @Public()
+  @Get("category/:category")
+  async getByCategory(@Param("category") category: string, @Query("limit") limit?: number) {
+    const recipes = await this.recipesService.getByCategory(category, limit ? Number(limit) : 20);
+    return { category, recipes };
+  }
+
+  @Public()
+  @Get("cuisine/:area")
+  async getByCuisine(@Param("area") area: string, @Query("limit") limit?: number) {
+    const recipes = await this.recipesService.getByCuisine(area, limit ? Number(limit) : 20);
+    return { cuisine: area, recipes };
+  }
+
+  @Public()
   @Get(":id")
   async getRecipeDetail(@Param("id") id: string) {
     return this.recipesService.findById(id);
