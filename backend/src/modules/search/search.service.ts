@@ -1,9 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { SearchHistory, SearchHistoryDocument } from "../../database/schemas/search-history.schema";
 import { GeminiService } from "../gemini/gemini.service";
+import { RecipesService } from "../recipes/recipes.service";
+import { MealDbRecipeProvider } from "../recipes/providers/mealdb.provider";
 
 export interface SearchOptions {
   query: string;
@@ -18,72 +20,110 @@ export interface SearchOptions {
 
 @Injectable()
 export class SearchService {
+  private readonly logger = new Logger("SearchService");
+
   constructor(
     @InjectModel(Recipe.name) private recipeModel: Model<RecipeDocument>,
     @InjectModel(SearchHistory.name) private searchHistoryModel: Model<SearchHistoryDocument>,
-    private geminiService: GeminiService
+    private geminiService: GeminiService,
+    private recipesService: RecipesService,
+    private mealDbProvider: MealDbRecipeProvider
   ) {}
 
   async searchRecipes(options: SearchOptions, userId?: string) {
     const { query, page = 1, limit = 20 } = options;
     const cleanQuery = (query || "").trim();
 
-    // 1. Analyze intent (Gemini used ONLY if query is conversational)
-    const intent = await this.geminiService.parseSearchIntent(cleanQuery);
+    // Determine if query is conversational or simple keyword
+    // Normal searches: "paneer", "butter chicken", "pasta", "biryani" -> NEVER CALL GEMINI
+    const words = cleanQuery.split(/\s+/);
+    const isConversational =
+      words.length >= 5 &&
+      /\b(i want|looking for|something like|can i make|under \d+|less than \d+|quick and easy)\b/i.test(cleanQuery);
 
-    // 2. Build MongoDB query
+    let intent: any = {
+      isConversational: false,
+      cuisine: options.cuisine,
+      mealType: options.mealType,
+      diet: options.diet,
+      maxCookingTime: options.maxCookingTime,
+      ingredients: [],
+    };
+
+    if (isConversational) {
+      try {
+        intent = await this.geminiService.parseSearchIntent(cleanQuery);
+      } catch {
+        // Safe deterministic fallback
+      }
+    }
+
+    // Build MongoDB query
     const mongoQuery: any = { status: "published" };
 
-    // Cuisine filter
     const targetCuisine = options.cuisine || intent.cuisine;
     if (targetCuisine && targetCuisine.toLowerCase() !== "all") {
       mongoQuery.cuisine = { $regex: new RegExp(`^${targetCuisine}$`, "i") };
     }
 
-    // Meal type filter
     const targetMealType = options.mealType || intent.mealType;
     if (targetMealType && targetMealType.toLowerCase() !== "all") {
       mongoQuery.mealTypes = { $in: [new RegExp(targetMealType, "i")] };
     }
 
-    // Diet filter
     const targetDiet = options.diet || intent.diet;
     if (targetDiet && targetDiet.toLowerCase() !== "all") {
       mongoQuery.dietaryTags = { $in: [new RegExp(targetDiet, "i")] };
     }
 
-    // Max cooking time filter
     const targetMaxTime = options.maxCookingTime || intent.maxCookingTime;
     if (targetMaxTime && targetMaxTime > 0) {
       mongoQuery.totalTime = { $lte: targetMaxTime };
     }
 
-    // Ingredients in query
     if (intent.ingredients && intent.ingredients.length > 0) {
       mongoQuery["ingredients.normalizedName"] = {
-        $in: intent.ingredients.map((i) => new RegExp(i.toLowerCase(), "i")),
+        $in: intent.ingredients.map((i: string) => new RegExp(i.toLowerCase(), "i")),
       };
     }
 
-    // Text search or keywords match
-    if (cleanQuery && (!intent.isConversational || !intent.ingredients.length)) {
+    if (cleanQuery) {
       mongoQuery.$or = [
         { name: { $regex: cleanQuery, $options: "i" } },
         { description: { $regex: cleanQuery, $options: "i" } },
         { searchKeywords: { $in: [new RegExp(cleanQuery, "i")] } },
         { cuisine: { $regex: cleanQuery, $options: "i" } },
+        { "ingredients.name": { $regex: cleanQuery, $options: "i" } },
       ];
     }
 
     const skip = (Math.max(1, page) - 1) * Math.min(50, limit);
     const take = Math.min(50, limit);
 
-    const [recipes, total] = await Promise.all([
-      this.recipeModel.find(mongoQuery).sort({ cookCount: -1 }).skip(skip).limit(take).lean(),
+    let [recipes, total] = await Promise.all([
+      this.recipeModel.find(mongoQuery).sort({ popularityScore: -1, cookCount: -1 }).skip(skip).limit(take).lean(),
       this.recipeModel.countDocuments(mongoQuery),
     ]);
 
-    // Record search history for user
+    // If fewer than 4 results found and query has terms, query TheMealDB and cache
+    if (recipes.length < 4 && cleanQuery) {
+      try {
+        const external = await this.mealDbProvider.searchRecipes(cleanQuery);
+        if (external.length > 0) {
+          const saved = await this.recipesService.upsertProviderRecipes(external);
+          const existingIds = new Set(recipes.map((r: any) => r._id?.toString()));
+          for (const s of saved) {
+            if (!existingIds.has(s._id?.toString())) {
+              recipes.push(s);
+              total++;
+            }
+          }
+        }
+      } catch (err: any) {
+        this.logger.warn(`External recipe search error: ${err.message}`);
+      }
+    }
+
     if (userId && cleanQuery) {
       this.searchHistoryModel
         .create({
@@ -97,7 +137,7 @@ export class SearchService {
 
     return {
       query: cleanQuery,
-      interpretedIntent: intent.isConversational
+      interpretedIntent: isConversational
         ? {
             cuisine: intent.cuisine,
             mealType: intent.mealType,
@@ -106,7 +146,7 @@ export class SearchService {
             ingredients: intent.ingredients,
           }
         : null,
-      recipes,
+      recipes: recipes.slice(0, take),
       pagination: {
         page: Number(page),
         limit: take,

@@ -51,4 +51,16 @@ export class PantryController {
   async getSmartSections(@CurrentUser() user: AuthenticatedUser) {
     return this.pantryService.getSmartSections(user.userId);
   }
+
+  @Post("find-dishes")
+  async findDishes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { ingredients?: string[]; includeAi?: boolean }
+  ) {
+    return this.pantryService.findDishesICanMake(
+      user.userId,
+      body.ingredients,
+      body.includeAi !== undefined ? body.includeAi : true
+    );
+  }
 }

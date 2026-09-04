@@ -1,10 +1,18 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { GoogleGenAI } from "@google/genai";
 import * as crypto from "crypto";
 import { ENV } from "../../config/env.config";
 import { AICache, AICacheDocument } from "../../database/schemas/ai-cache.schema";
+import {
+  AIIngredientCache,
+  AIIngredientCacheDocument,
+  DishSuggestion,
+} from "../../database/schemas/ai-ingredient-cache.schema";
+import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
+import { IngredientsService } from "../ingredients/ingredients.service";
+import { MealDbRecipeProvider } from "../recipes/providers/mealdb.provider";
 
 export interface ParsedSearchIntent {
   queryKeywords: string[];
@@ -18,27 +26,246 @@ export interface ParsedSearchIntent {
   isConversational: boolean;
 }
 
+export interface CookWithWhatIHaveResult {
+  fromCache: boolean;
+  ingredientHash: string;
+  suggestions: Array<{
+    dishName: string;
+    requiredIngredients: string[];
+    optionalIngredients: string[];
+    reason: string;
+    missingImportantIngredients: string[];
+    isAiSuggestion: boolean;
+    sourceTag: string;
+    matchedRecipe?: any;
+  }>;
+  note?: string;
+}
+
 @Injectable()
 export class GeminiService {
+  private readonly logger = new Logger("GeminiService");
   private aiClient: GoogleGenAI | null = null;
+  // In-memory deduplication for concurrent identical in-flight requests
+  private readonly inFlightRequests = new Map<string, Promise<CookWithWhatIHaveResult>>();
 
   constructor(
-    @InjectModel(AICache.name) private aiCacheModel: Model<AICacheDocument>
+    @InjectModel(AICache.name) private aiCacheModel: Model<AICacheDocument>,
+    @InjectModel(AIIngredientCache.name)
+    private aiIngredientCacheModel: Model<AIIngredientCacheDocument>,
+    @InjectModel(Recipe.name) private recipeModel: Model<RecipeDocument>,
+    private ingredientsService: IngredientsService,
+    private mealDbProvider: MealDbRecipeProvider
   ) {
     if (ENV.GEMINI_API_KEY) {
-      this.aiClient = new GoogleGenAI({
-        apiKey: ENV.GEMINI_API_KEY,
-        httpOptions: {
-          headers: {
-            "User-Agent": "SavourCookMate/2.0",
+      try {
+        this.aiClient = new GoogleGenAI({
+          apiKey: ENV.GEMINI_API_KEY,
+          httpOptions: {
+            headers: {
+              "User-Agent": "SavourCookMate/2.0",
+            },
           },
-        },
-      });
+        });
+      } catch (err: any) {
+        this.logger.warn(`Failed to initialize GoogleGenAI: ${err.message}`);
+      }
     }
   }
 
   private hashKey(prefix: string, data: any): string {
     return crypto.createHash("sha256").update(`${prefix}:${JSON.stringify(data)}`).digest("hex");
+  }
+
+  /**
+   * SIGNATURE FEATURE: "Cook With What I Have"
+   * ONLY runs when user explicitly taps "Find dishes I can make".
+   * 1. Normalizes and sorts ingredients deterministically.
+   * 2. Checks MongoDB aiIngredientCache.
+   * 3. Deduplicates concurrent in-flight requests.
+   * 4. Structured compact Gemini request if uncached.
+   * 5. Matches real recipes in MongoDB or displays as "Suggested from your ingredients".
+   */
+  async cookWithWhatIHave(
+    rawIngredients: string[],
+    preferences: Record<string, any> = {}
+  ): Promise<CookWithWhatIHaveResult> {
+    if (!rawIngredients || rawIngredients.length === 0) {
+      return {
+        fromCache: false,
+        ingredientHash: "",
+        suggestions: [],
+      };
+    }
+
+    // 1. Normalize and sort ingredients to form deterministic key
+    const normalizedList = Array.from(
+      new Set(
+        rawIngredients
+          .map((i) => this.ingredientsService.normalizeIngredientName(i))
+          .filter(Boolean)
+      )
+    ).sort();
+
+    const ingredientHash = normalizedList.join("|");
+
+    // 2. In-memory deduplication for identical concurrent requests
+    if (this.inFlightRequests.has(ingredientHash)) {
+      return this.inFlightRequests.get(ingredientHash)!;
+    }
+
+    const requestPromise = this.executeCookWithWhatIHave(normalizedList, ingredientHash, preferences);
+    this.inFlightRequests.set(ingredientHash, requestPromise);
+
+    try {
+      return await requestPromise;
+    } finally {
+      this.inFlightRequests.delete(ingredientHash);
+    }
+  }
+
+  private async executeCookWithWhatIHave(
+    normalizedList: string[],
+    ingredientHash: string,
+    preferences: Record<string, any>
+  ): Promise<CookWithWhatIHaveResult> {
+    // 3. Check MongoDB aiIngredientCache
+    const cached = await this.aiIngredientCacheModel.findOne({ ingredientHash }).lean();
+    if (cached && cached.expiresAt > new Date() && cached.suggestions?.length > 0) {
+      const enriched = await this.enrichSuggestions(cached.suggestions);
+      return {
+        fromCache: true,
+        ingredientHash,
+        suggestions: enriched,
+      };
+    }
+
+    // If Gemini client is not configured
+    if (!this.aiClient) {
+      return {
+        fromCache: false,
+        ingredientHash,
+        suggestions: [],
+        note: "AI ingredient reasoning is offline. Using verified pantry matches from your kitchen.",
+      };
+    }
+
+    // 4. Send compact structured request to Gemini
+    try {
+      const prompt = `You are a culinary expert. The user has these ingredients in their kitchen:
+[${normalizedList.join(", ")}]
+
+Preferences / Restrictions: ${JSON.stringify(preferences)}
+
+Determine up to 5 plausible dishes that can be prepared primarily using these ingredients.
+Return JSON ONLY strictly matching this structure:
+{
+  "suggestions": [
+    {
+      "dishName": "Exact recipe title",
+      "requiredIngredients": ["ingredient 1", "ingredient 2"],
+      "optionalIngredients": ["optional ingredient"],
+      "reason": "1 concise sentence explaining why this works with their pantry",
+      "missingImportantIngredients": ["any staple they might need to add"]
+    }
+  ]
+}
+Do NOT generate fake ratings, fake reviews, calories, videos, or markdown backticks outside JSON.`;
+
+      const response = await this.aiClient.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const suggestions: DishSuggestion[] = Array.isArray(parsed.suggestions)
+          ? parsed.suggestions.map((s: any) => ({
+              dishName: s.dishName || "Custom Dish",
+              requiredIngredients: s.requiredIngredients || [],
+              optionalIngredients: s.optionalIngredients || [],
+              reason: s.reason || "",
+              missingImportantIngredients: s.missingImportantIngredients || [],
+            }))
+          : [];
+
+        // Cache in MongoDB with 7-day TTL
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        await this.aiIngredientCacheModel.findOneAndUpdate(
+          { ingredientHash },
+          {
+            ingredientHash,
+            ingredients: normalizedList,
+            preferences,
+            suggestions,
+            modelVersion: "gemini-2.5-flash",
+            createdAt: new Date(),
+            expiresAt,
+          },
+          { upsert: true }
+        );
+
+        const enriched = await this.enrichSuggestions(suggestions);
+        return {
+          fromCache: false,
+          ingredientHash,
+          suggestions: enriched,
+        };
+      }
+    } catch (err: any) {
+      this.logger.warn(`Gemini cook-with-what-i-have error: ${err.message}`);
+    }
+
+    return {
+      fromCache: false,
+      ingredientHash,
+      suggestions: [],
+      note: "Could not generate creative dish suggestions. Relying on verified recipe matches.",
+    };
+  }
+
+  /**
+   * Cross-references AI suggestions with real recipes in MongoDB Atlas or TheMealDB.
+   * If not found, labels clearly as "Suggested from your ingredients".
+   */
+  private async enrichSuggestions(suggestions: DishSuggestion[]) {
+    const results = [];
+
+    for (const item of suggestions) {
+      let matchedRecipe = await this.recipeModel
+        .findOne({
+          name: { $regex: new RegExp(`^${item.dishName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+          status: "published",
+        })
+        .lean();
+
+      if (!matchedRecipe) {
+        try {
+          const external = await this.mealDbProvider.searchRecipes(item.dishName);
+          if (external.length > 0) {
+            matchedRecipe = external[0] as any;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      results.push({
+        dishName: item.dishName,
+        requiredIngredients: item.requiredIngredients,
+        optionalIngredients: item.optionalIngredients,
+        reason: item.reason,
+        missingImportantIngredients: item.missingImportantIngredients,
+        isAiSuggestion: !matchedRecipe,
+        sourceTag: matchedRecipe ? "Verified Recipe" : "Suggested from your ingredients",
+        matchedRecipe: matchedRecipe || undefined,
+      });
+    }
+
+    return results;
   }
 
   async parseSearchIntent(rawQuery: string): Promise<ParsedSearchIntent> {
@@ -51,14 +278,12 @@ export class GeminiService {
       };
     }
 
-    // Check if query is conversational or simple keyword
     const words = trimmed.split(/\s+/);
     const isConversational =
-      words.length > 3 ||
-      /\b(want|have|under|less than|minutes|mins|something|make|quick|easy|spicy|dinner|lunch|breakfast)\b/i.test(trimmed);
+      words.length >= 5 &&
+      /\b(i want|looking for|something like|can i make|under \d+|less than \d+|quick and easy)\b/i.test(trimmed);
 
     if (!isConversational || !this.aiClient) {
-      // Deterministic parsing without AI overhead
       return this.fallbackParse(trimmed);
     }
 
@@ -70,8 +295,7 @@ export class GeminiService {
 
     try {
       const prompt = `Analyze this culinary search query: "${trimmed}".
-Extract the user's intent into structured JSON.
-Return JSON ONLY:
+Extract user intent into structured JSON only:
 {
   "queryKeywords": ["keywords"],
   "ingredients": ["ingredient names"],
@@ -118,7 +342,7 @@ Return JSON ONLY:
         return result;
       }
     } catch (err) {
-      console.warn("Gemini intent parse warning, falling back to deterministic extraction:", err);
+      this.logger.warn(`Gemini intent parse warning, falling back to deterministic extraction: ${err}`);
     }
 
     return this.fallbackParse(trimmed);
@@ -158,7 +382,7 @@ Return JSON ONLY:
 
     if (!this.aiClient) {
       return [
-        { substitute: "Appropriate pantry alternative", ratio: "1:1", tip: "Use similar texture and moisture." },
+        { substitute: "Appropriate culinary alternative", ratio: "1:1", tip: "Use similar moisture and seasoning." },
       ];
     }
 
@@ -191,7 +415,7 @@ Return JSON only:
         return subs;
       }
     } catch (err) {
-      console.warn("Gemini substitutions warning:", err);
+      this.logger.warn(`Gemini substitutions warning: ${err}`);
     }
 
     return [];

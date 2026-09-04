@@ -605,7 +605,15 @@ export async function seedDatabaseIfEmpty(
     if (recipeCount === 0) {
       console.log("Seeding authentic recipes into MongoDB Atlas...");
       for (const r of INITIAL_RECIPES) {
-        await recipeModel.findOneAndUpdate({ slug: r.slug }, r, { upsert: true, new: true });
+        const withDefaults = {
+          ...r,
+          category: (r as any).category || (r.mealTypes && r.mealTypes[0]) || "Main Course",
+          instructions: (r as any).instructions || r.steps?.map((s) => s.instruction) || [],
+          provider: "curated",
+          lastSyncedAt: new Date(),
+          popularityScore: 10,
+        };
+        await recipeModel.findOneAndUpdate({ slug: r.slug }, withDefaults, { upsert: true, new: true });
       }
       console.log(`Seeded ${INITIAL_RECIPES.length} recipes.`);
     }

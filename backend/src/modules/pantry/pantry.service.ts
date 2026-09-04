@@ -4,6 +4,7 @@ import { Model } from "mongoose";
 import { PantryItem, PantryItemDocument } from "../../database/schemas/pantry-item.schema";
 import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { IngredientsService } from "../ingredients/ingredients.service";
+import { GeminiService } from "../gemini/gemini.service";
 
 export interface CreatePantryItemDto {
   name: string;
@@ -25,7 +26,8 @@ export class PantryService {
   constructor(
     @InjectModel(PantryItem.name) private pantryModel: Model<PantryItemDocument>,
     @InjectModel(Recipe.name) private recipeModel: Model<RecipeDocument>,
-    private ingredientsService: IngredientsService
+    private ingredientsService: IngredientsService,
+    private geminiService: GeminiService
   ) {}
 
   async getPantryItems(userId: string) {
@@ -89,7 +91,6 @@ export class PantryService {
       { $set: update },
       { new: true }
     );
-
     if (!updated) {
       throw new NotFoundException("Pantry item not found.");
     }
@@ -185,6 +186,104 @@ export class PantryService {
       missingOneIngredient: missingOneIngredient.slice(0, 10),
       bestMatch: bestMatch.slice(0, 10),
       quickestMatch: quickestMatch.slice(0, 10),
+    };
+  }
+
+  /**
+   * "Cook With What I Have"
+   * Performs deterministic recipe matching first across verified recipes.
+   * If user requests creative AI suggestions or if deterministic matches need additional ideas,
+   * calls Gemini asynchronously and returns clearly labeled results.
+   */
+  async findDishesICanMake(
+    userId: string,
+    specificIngredients?: string[],
+    includeAi = true
+  ) {
+    let ingredientNames: string[] = [];
+
+    if (specificIngredients && specificIngredients.length > 0) {
+      ingredientNames = specificIngredients;
+    } else {
+      const items = await this.pantryModel.find({ userId }).lean();
+      ingredientNames = items.map((i) => i.name || i.normalizedName);
+    }
+
+    if (ingredientNames.length === 0) {
+      return {
+        makeNow: [],
+        almostThere: [],
+        goodMatch: [],
+        aiSuggestions: [],
+        message: "No ingredients provided. Add ingredients to your kitchen first.",
+      };
+    }
+
+    const recipes = await this.recipeModel.find({ status: "published" }).lean();
+    const makeNow: any[] = [];
+    const almostThere: any[] = [];
+    const goodMatch: any[] = [];
+
+    for (const recipe of recipes) {
+      const required = recipe.ingredients.filter((i) => !i.optional);
+      if (required.length === 0) continue;
+
+      let matched = 0;
+      const matchedNames: string[] = [];
+      const missingNames: string[] = [];
+
+      for (const req of required) {
+        const isAvail = ingredientNames.some((p) =>
+          this.ingredientsService.areIngredientsMatching(p, req.name)
+        );
+        if (isAvail) {
+          matched++;
+          matchedNames.push(req.name);
+        } else {
+          missingNames.push(req.name);
+        }
+      }
+
+      const matchPct = Math.round((matched / required.length) * 100);
+      const enriched = {
+        ...recipe,
+        matchPercentage: matchPct,
+        matchedIngredients: matchedNames,
+        missingIngredients: missingNames,
+        matchedCount: matched,
+        totalRequired: required.length,
+      };
+
+      if (matchPct >= 95) {
+        makeNow.push(enriched);
+      } else if (missingNames.length <= 2) {
+        almostThere.push(enriched);
+      } else if (matchPct >= 50) {
+        goodMatch.push(enriched);
+      }
+    }
+
+    makeNow.sort((a, b) => b.matchPercentage - a.matchPercentage);
+    almostThere.sort((a, b) => b.matchPercentage - a.matchPercentage);
+    goodMatch.sort((a, b) => b.matchPercentage - a.matchPercentage);
+
+    // Call Gemini only if requested and user has enough ingredients
+    let aiSuggestions: any[] = [];
+    if (includeAi) {
+      try {
+        const aiRes = await this.geminiService.cookWithWhatIHave(ingredientNames);
+        aiSuggestions = aiRes.suggestions || [];
+      } catch {
+        // Fallback without failing
+      }
+    }
+
+    return {
+      makeNow: makeNow.slice(0, 10),
+      almostThere: almostThere.slice(0, 10),
+      goodMatch: goodMatch.slice(0, 10),
+      aiSuggestions,
+      totalMatched: makeNow.length + almostThere.length + goodMatch.length,
     };
   }
 }

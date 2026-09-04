@@ -8,6 +8,14 @@ export class GeminiController {
   constructor(private readonly geminiService: GeminiService) {}
 
   @Public()
+  @Post("cook-with-what-i-have")
+  async cookWithWhatIHave(
+    @Body() body: { ingredients: string[]; preferences?: Record<string, any> }
+  ) {
+    return this.geminiService.cookWithWhatIHave(body.ingredients || [], body.preferences || {});
+  }
+
+  @Public()
   @Post("substitutions")
   async getSubstitutions(
     @Body() body: { ingredient: string; dishContext?: string }
