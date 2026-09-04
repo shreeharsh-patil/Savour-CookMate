@@ -70,7 +70,7 @@ export function mapMongoRecipeToClient(doc: any): Recipe {
     tags: doc.searchKeywords || doc.dietaryTags || [],
     imageSearchQuery: doc.name,
     youtubeSearchQuery: doc.youtubeSearchQuery || `${doc.name} authentic recipe tutorial`,
-    imageUrl: doc.imageUrl || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&auto=format&fit=crop&q=80",
+    imageUrl: doc.imageUrl || doc.thumbnailUrl || "",
     prepTimeMinutes: doc.prepTime,
     cookTimeMinutes: doc.cookTime,
   };

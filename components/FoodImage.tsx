@@ -12,9 +12,6 @@ interface FoodImageProps {
   priority?: 'low' | 'normal' | 'high';
 }
 
-const FALLBACK_CULINARY_IMAGE =
-  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=80';
-
 // Universal warm food blurhash for instant visual feedback
 const FOOD_BLURHASH = 'L5PZfSi_.AyE_3t7t7R**0o#DgR4';
 
@@ -29,32 +26,34 @@ export const FoodImage: React.FC<FoodImageProps> = ({
   const [hasError, setHasError] = useState(false);
 
   const resolvedSource = React.useMemo(() => {
-    if (hasError) {
-      return { uri: FALLBACK_CULINARY_IMAGE };
+    if (hasError && thumbnailSource?.uri) {
+      return thumbnailSource;
     }
     if (typeof source === 'object' && (!source.uri || source.uri.trim() === '')) {
-      if (thumbnailSource && thumbnailSource.uri) {
+      if (thumbnailSource?.uri) {
         return thumbnailSource;
       }
-      return { uri: FALLBACK_CULINARY_IMAGE };
+      return undefined;
     }
     return source;
   }, [source, thumbnailSource, hasError]);
 
   return (
     <View style={[styles.container, { borderRadius }, style]}>
-      <ExpoImage
-        source={resolvedSource}
-        placeholder={{ blurhash: FOOD_BLURHASH }}
-        contentFit={contentFit}
-        transition={200}
-        cachePolicy="memory-disk"
-        priority={priority}
-        style={[styles.image, { borderRadius }]}
-        onError={() => {
-          if (!hasError) setHasError(true);
-        }}
-      />
+      {resolvedSource && (
+        <ExpoImage
+          source={resolvedSource}
+          placeholder={{ blurhash: FOOD_BLURHASH }}
+          contentFit={contentFit}
+          transition={200}
+          cachePolicy="memory-disk"
+          priority={priority}
+          style={[styles.image, { borderRadius }]}
+          onError={() => {
+            if (!hasError && thumbnailSource?.uri) setHasError(true);
+          }}
+        />
+      )}
     </View>
   );
 };
