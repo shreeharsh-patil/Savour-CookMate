@@ -7,6 +7,8 @@ import fastifyRateLimit from "@fastify/rate-limit";
 import { AppModule } from "./app.module";
 import { ENV } from "./config/env.config";
 import { AllExceptionsFilter } from "./common/filters/http-exception.filter";
+import { MonitoringService } from "./common/monitoring/monitoring.service";
+import { MonitoringInterceptor } from "./common/monitoring/monitoring.interceptor";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -32,6 +34,9 @@ async function bootstrap() {
     timeWindow: "1 minute",
   });
 
+  const monitoringService = app.get(MonitoringService);
+  app.useGlobalInterceptors(new MonitoringInterceptor(monitoringService));
+
   // Global structured exception handling
   app.useGlobalFilters(new AllExceptionsFilter());
 
@@ -44,6 +49,7 @@ async function bootstrap() {
       version: "2.0.0",
       timestamp: new Date().toISOString(),
       database: "MongoDB Atlas",
+      metrics: monitoringService.getMetricsSummary(),
     };
   });
 

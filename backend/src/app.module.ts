@@ -19,9 +19,11 @@ import { ShoppingModule } from "./modules/shopping/shopping.module";
 import { HistoryModule } from "./modules/history/history.module";
 import { YouTubeModule } from "./modules/youtube/youtube.module";
 import { GeminiModule } from "./modules/gemini/gemini.module";
+import { MonitoringModule } from "./common/monitoring/monitoring.module";
 
 @Module({
   imports: [
+    MonitoringModule,
     MongooseModule.forRoot(ENV.MONGODB_URI, {
       retryAttempts: 2,
       retryDelay: 1000,
