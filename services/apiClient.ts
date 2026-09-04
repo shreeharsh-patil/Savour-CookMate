@@ -1,124 +1,96 @@
-/**
- * Savour CookMate - Mobile API Client
- *
- * Implements:
- * - Centralized base URL configuration (points to Savour backend server)
- * - Timeout handling (prevents hanging network requests)
- * - Exponential backoff retry for resilient connectivity
- * - In-flight deduplication to eliminate duplicate requests
- * - Memory caching for instant navigation
- */
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 
-import { Platform } from 'react-native';
-
-const DEFAULT_PORT = 3000;
-
-// Determine appropriate localhost or LAN address for iOS / Android / Web
-function getDefaultBaseUrl(): string {
-  // If environment variable is set, use it
+// Local development fallback ports for Android Emulator vs iOS Simulator / Web
+const getBaseUrl = (): string => {
   if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '');
+    return process.env.EXPO_PUBLIC_API_URL;
   }
-
-  // On Android emulator, localhost maps to 10.0.2.2
-  if (Platform.OS === 'android') {
-    return `http://10.0.2.2:${DEFAULT_PORT}`;
+  if (Platform.OS === "android") {
+    // 10.0.2.2 points to host machine from Android Emulator
+    return "http://10.0.2.2:3000";
   }
+  return "http://localhost:3000";
+};
 
-  // On Web or iOS Simulator, localhost is 127.0.0.1
-  return `http://localhost:${DEFAULT_PORT}`;
+const BASE_URL = getBaseUrl();
+const TOKEN_KEY = "@savour_cookmate_auth_token";
+
+export async function getStoredToken(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
-export const API_BASE_URL = getDefaultBaseUrl();
+export async function setStoredToken(token: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(TOKEN_KEY, token);
+  } catch (err) {
+    console.warn("Error saving auth token:", err);
+  }
+}
+
+export async function clearStoredToken(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(TOKEN_KEY);
+  } catch (err) {
+    console.warn("Error clearing auth token:", err);
+  }
+}
 
 interface RequestOptions extends RequestInit {
   timeoutMs?: number;
-  retries?: number;
 }
 
-const inFlightRequests = new Map<string, Promise<any>>();
-const clientCache = new Map<string, { data: any; expiresAt: number }>();
+export async function apiClient<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  const { timeoutMs = 12000, ...fetchOptions } = options;
+  const url = endpoint.startsWith("http") ? endpoint : `${BASE_URL}${endpoint}`;
 
-export async function apiRequest<T = any>(
-  endpoint: string,
-  options: RequestOptions = {}
-): Promise<T> {
-  const { timeoutMs = 15000, retries = 1, ...fetchOptions } = options;
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${API_BASE_URL}${cleanEndpoint}`;
-
-  const cacheKey = `${options.method || 'GET'}:${url}:${fetchOptions.body ? String(fetchOptions.body) : ''}`;
-
-  // 1. Check client memory cache (for GET requests or discover requests)
-  if (options.method === 'GET' || cleanEndpoint.includes('/discover')) {
-    const cached = clientCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.data as T;
-    }
-  }
-
-  // 2. Check in-flight duplicate requests
-  if (inFlightRequests.has(cacheKey)) {
-    return inFlightRequests.get(cacheKey) as Promise<T>;
-  }
-
-  const executeRequest = async (attempt: number): Promise<T> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...(fetchOptions.headers || {}),
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(
-          errorBody.message ||
-            errorBody.error ||
-            `Server returned status ${response.status}`
-        );
-      }
-
-      const data = await response.json();
-
-      // Cache successful response for 3 minutes
-      clientCache.set(cacheKey, { data, expiresAt: Date.now() + 180000 });
-
-      return data as T;
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-
-      const isTimeout = err.name === 'AbortError';
-      const errorMessage = isTimeout
-        ? 'Connection timed out. Please check network connection.'
-        : err.message || 'Unable to connect to Savour server.';
-
-      if (attempt < retries && !isTimeout) {
-        // Wait with exponential backoff before retry
-        await new Promise((res) => setTimeout(res, 800 * Math.pow(2, attempt)));
-        return executeRequest(attempt + 1);
-      }
-
-      throw new Error(errorMessage);
-    } finally {
-      inFlightRequests.delete(cacheKey);
-    }
+  const token = await getStoredToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...(options.headers as Record<string, string>),
   };
 
-  const promise = executeRequest(0);
-  inFlightRequests.set(cacheKey, promise);
-  return promise;
-}
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    // Fallback anonymous guest token for unauthenticated browsing
+    headers["Authorization"] = "Bearer guest_default";
+  }
 
-export function clearApiCache(): void {
-  clientCache.clear();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP Error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch {
+        // use default HTTP error
+      }
+      throw new Error(errorMessage);
+    }
+
+    return (await response.json()) as T;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      throw new Error("Request timed out. Please check your network connection.");
+    }
+    throw err;
+  }
 }

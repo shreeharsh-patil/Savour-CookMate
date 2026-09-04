@@ -57,9 +57,14 @@ export interface Recipe {
   totalTime: number; // in minutes
   servings: number;
   calories: number;
-  ratingEstimate: number;
+  ratingEstimate?: number;
+  averageRating?: number | null;
+  ratingCount?: number;
+  cookCount?: number;
+  nutrition?: { calories?: number; protein?: number; carbs?: number; fat?: number; fiber?: number };
   ingredients: Ingredient[];
   instructions: string[];
+  steps?: Array<{ stepNumber: number; instruction: string; timerMinutes?: number; chefTip?: string }>;
   tips: string[];
   substitutions: RecipeSubstitution[];
   tags: string[];
@@ -118,7 +123,7 @@ export interface ShoppingListItem {
   recipeId?: string;
   category?: string;
   checked: boolean;
-  addedAt: string;
+  addedAt?: string;
 }
 
 export interface SavedCollection {
@@ -148,12 +153,17 @@ export interface YouTubeVideo {
 }
 
 export interface UserPreferences {
-  diet: DietType;
+  diet: DietType | string;
+  allergies?: string[];
   favoriteCuisines: string[];
-  skillLevel: CookingLevelType;
-  videoLanguages: VideoLanguageType[];
-  spiceTolerance: SpiceLevelType;
-  onboardingCompleted: boolean;
+  cookingSkill?: CookingLevelType | string;
+  skillLevel: CookingLevelType | string;
+  videoLanguages: VideoLanguageType[] | string[];
+  preferredLanguages?: string[];
+  maximumCookingTime?: number;
+  spicePreference?: SpiceLevelType | string;
+  spiceTolerance: SpiceLevelType | string;
+  onboardingCompleted?: boolean;
 }
 
 export interface CookingHistoryItem {
@@ -161,7 +171,7 @@ export interface CookingHistoryItem {
   userId?: string;
   recipeId: string;
   recipeTitle: string;
-  recipeData: Recipe;
+  recipeData?: Recipe;
   rating?: number;
   notes?: string;
   cookedAt: string;
@@ -171,6 +181,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  avatar?: string;
   avatarUrl?: string;
   isGuest: boolean;
 }
@@ -178,12 +189,17 @@ export interface AuthUser {
 export interface UserProfile {
   id?: string;
   name: string;
-  email: string;
-  avatarUrl: string;
-  skillLevel: CookingLevelType | string;
-  spiceTolerance: SpiceLevelType;
-  dietaryPreferences: string[];
-  createdAt: string;
+  email?: string;
+  avatar?: string;
+  avatarUrl?: string;
+  skillLevel?: CookingLevelType | string;
+  spiceTolerance?: SpiceLevelType | string;
+  dietaryPreferences?: string[];
+  createdAt?: string;
+  memberSince?: string;
+  totalRecipesCooked?: number;
+  savedRecipeCount?: number;
+  level?: string;
   isGuest?: boolean;
 }
 
@@ -191,6 +207,7 @@ export interface RecipeFilterOptions {
   category?: string;
   query?: string;
   cuisine?: string;
+  mealType?: string;
   dietary?: string[];
   diet?: DietType | string;
   skillLevel?: CookingLevelType | string;
