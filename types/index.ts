@@ -218,6 +218,7 @@ export interface RecipeFilterOptions {
 
 export interface PantryQueryOptions {
   ingredients?: string[];
+  selectedIngredients?: string[];
   naturalLanguagePrompt?: string;
   dietary?: string[];
   diet?: string;

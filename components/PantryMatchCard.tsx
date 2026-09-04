@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Clock, Plus, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { Clock, Plus, CheckCircle, AlertCircle, Sparkles } from 'lucide-react-native';
 import { PantryRecipeRecommendation } from '../types';
 import { FoodImage } from './FoodImage';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme';
@@ -82,6 +82,14 @@ export const PantryMatchCard: React.FC<PantryMatchCardProps> = ({
                 {formatCookTime(recipe.cookTime || recipe.totalTime)}
               </Text>
             </View>
+
+            {recommendation.reasonForRecommendation &&
+            recommendation.reasonForRecommendation.toLowerCase().includes('suggested') ? (
+              <View style={styles.aiBadge}>
+                <Sparkles size={10} color="#7C3AED" />
+                <Text style={styles.aiBadgeText}>Suggested from your ingredients</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.title} numberOfLines={1}>
@@ -183,6 +191,21 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 10,
     color: COLORS.textMuted,
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADIUS.xs,
+  },
+  aiBadgeText: {
+    fontSize: 9,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: '#7C3AED',
+    textTransform: 'uppercase',
   },
   title: {
     fontSize: TYPOGRAPHY.sizes.body,

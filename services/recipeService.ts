@@ -16,7 +16,7 @@ export function mapMongoRecipeToClient(doc: any): Recipe {
     ? doc.instructions
     : [];
 
-  const parsedSteps = Array.isArray(doc.steps)
+  const parsedSteps = Array.isArray(doc.steps) && doc.steps.length > 0
     ? doc.steps.map((s: any, idx: number) => ({
         stepNumber: s.stepNumber || idx + 1,
         title: `Step ${s.stepNumber || idx + 1}`,
@@ -37,7 +37,7 @@ export function mapMongoRecipeToClient(doc: any): Recipe {
     title: doc.name || doc.title || "Savory Dish",
     description: doc.description || "",
     cuisine: doc.cuisine || "Global",
-    mealType: Array.isArray(doc.mealTypes) && doc.mealTypes.length > 0 ? doc.mealTypes[0] : doc.mealType || "Dinner",
+    mealType: Array.isArray(doc.mealTypes) && doc.mealTypes.length > 0 ? doc.mealTypes[0] : doc.mealType || doc.category || "Dinner",
     diet: Array.isArray(doc.dietaryTags) && doc.dietaryTags.length > 0 ? doc.dietaryTags[0] : doc.diet || "All",
     difficulty: doc.difficulty || "Medium",
     prepTime: doc.prepTime || 15,
@@ -51,7 +51,7 @@ export function mapMongoRecipeToClient(doc: any): Recipe {
     nutrition: doc.nutrition || { calories: doc.calories || 400, protein: 0, carbs: 0, fat: 0, fiber: 0 },
     ingredients: (doc.ingredients || []).map((ing: any) => ({
       name: ing.name,
-      normalizedName: ing.normalizedName || ing.name.toLowerCase(),
+      normalizedName: ing.normalizedName || ing.name?.toLowerCase() || "",
       quantity: ing.quantity || "1",
       unit: ing.unit || "unit",
       optional: Boolean(ing.optional),
@@ -98,27 +98,101 @@ export const recipeService = {
   },
 
   /**
-   * "Cook With What I Have" - deterministic recommendations from MongoDB Atlas
+   * Normal search without Gemini: Checks MongoDB Atlas search first, then TheMealDB
+   */
+  async searchRecipes(query: string, limit = 20): Promise<Recipe[]> {
+    try {
+      const res = await api.recipes.searchDirect(query, limit);
+      return (res.recipes || []).map(mapMongoRecipeToClient);
+    } catch (err) {
+      console.warn("Recipe search error:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Real popularity: recipes sorted by real app interactions (views, saves, cooking completions)
+   */
+  async getPopularRecipes(limit = 10): Promise<Recipe[]> {
+    try {
+      const items = await api.analytics.getPopular(limit);
+      return items.map(mapMongoRecipeToClient);
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Home Feed: Structured sections without any Gemini overhead
+   */
+  async getHomeFeed() {
+    try {
+      const feed = await api.recipes.getHomeFeed();
+      return {
+        whatsOnYourMind: feed.whatsOnYourMind || [],
+        popularCuisines: feed.popularCuisines || [],
+        quickMeals: (feed.quickMeals || []).map(mapMongoRecipeToClient),
+        popularWithUsers: (feed.popularWithUsers || []).map(mapMongoRecipeToClient),
+        categories: feed.categories || [],
+        discoverNew: (feed.discoverNew || []).map(mapMongoRecipeToClient),
+      };
+    } catch (err) {
+      console.warn("Home feed fetch error:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Categories from TheMealDB + MongoDB
+   */
+  async getCategories(): Promise<string[]> {
+    try {
+      const res = await api.recipes.getCategories();
+      return res.categories || [];
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Cuisines / Areas from TheMealDB + MongoDB
+   */
+  async getCuisines(): Promise<string[]> {
+    try {
+      const res = await api.recipes.getCuisines();
+      return res.cuisines || [];
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * "Cook With What I Have":
+   * Deterministic matching first against verified recipe databases.
+   * If user explicitly asks for creative suggestions, runs Gemini.
    */
   async findPantryRecommendations(
     options: PantryQueryOptions
   ): Promise<PantryIntelligenceResult> {
     try {
-      const res = await api.recommendations.getRecommendations();
+      const items = options.selectedIngredients || options.ingredients;
+      const res = await api.pantry.findDishes(
+        items,
+        Boolean(options.naturalLanguagePrompt || items?.length)
+      );
 
-      const allGroups = [
+      const allDeterministic = [
         ...(res.makeNow || []),
         ...(res.almostThere || []),
         ...(res.goodMatch || []),
-        ...(res.worthShoppingFor || []),
       ];
 
-      const recommendations: PantryRecipeRecommendation[] = allGroups.map((item) => {
-        const recipe = mapMongoRecipeToClient(item.recipe);
+      const recommendations: PantryRecipeRecommendation[] = allDeterministic.map((item) => {
+        const recipe = mapMongoRecipeToClient(item);
         const missingCount = item.missingIngredients?.length || 0;
 
         let group: "MAKE NOW" | "ALMOST THERE" | "GOOD MATCH" | "WORTH SHOPPING FOR" = "WORTH SHOPPING FOR";
-        if (missingCount === 0) group = "MAKE NOW";
+        if (missingCount === 0 || item.matchPercentage >= 95) group = "MAKE NOW";
         else if (missingCount <= 2) group = "ALMOST THERE";
         else if (item.matchPercentage >= 50) group = "GOOD MATCH";
 
@@ -126,15 +200,36 @@ export const recipeService = {
           recipe,
           matchPercentage: item.matchPercentage,
           availableIngredients: item.matchedIngredients || [],
-          missingIngredients: item.missingIngredients || [],
+          missingIngredients: item.missingIngredients?.map((i: any) => i.name || i) || [],
           optionalMissingIngredients: [],
-          reasonForRecommendation: item.explanation || `${item.matchPercentage}% pantry ingredient match`,
+          reasonForRecommendation: `${item.matchPercentage}% ingredient match from your kitchen`,
           group,
           matchGroup: group,
-          totalRequiredCount: (item.matchedIngredients?.length || 0) + (item.missingIngredients?.length || 0),
-          availableCount: item.matchedIngredients?.length || 0,
+          totalRequiredCount: item.totalRequired || item.ingredients?.length || 1,
+          availableCount: item.matchedCount || 0,
         };
       });
+
+      // Map AI suggestions if present
+      if (res.aiSuggestions && res.aiSuggestions.length > 0) {
+        for (const sug of res.aiSuggestions) {
+          if (sug.matchedRecipe) {
+            const recipe = mapMongoRecipeToClient(sug.matchedRecipe);
+            recommendations.push({
+              recipe,
+              matchPercentage: 80,
+              availableIngredients: sug.requiredIngredients || [],
+              missingIngredients: sug.missingImportantIngredients || [],
+              optionalMissingIngredients: sug.optionalIngredients || [],
+              reasonForRecommendation: sug.reason || "Suggested from your ingredients",
+              group: "GOOD MATCH",
+              matchGroup: "GOOD MATCH",
+              totalRequiredCount: sug.requiredIngredients?.length || 1,
+              availableCount: sug.requiredIngredients?.length || 1,
+            });
+          }
+        }
+      }
 
       return {
         recommendations,

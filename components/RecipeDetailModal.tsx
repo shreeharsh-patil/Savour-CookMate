@@ -34,6 +34,7 @@ import { formatCookTime, formatRating, formatCalories } from '../utils/formatter
 import { useAppStore } from '../store/useAppStore';
 import { youtubeService, YouTubeFilter } from '../services/youtubeService';
 import { analytics } from '../services/analytics';
+import { api } from '../services/api';
 
 interface RecipeDetailModalProps {
   visible: boolean;
@@ -67,6 +68,18 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [showAllVideos, setShowAllVideos] = useState<boolean>(false);
   const [isLoadingVideos, setIsLoadingVideos] = useState<boolean>(false);
   const [videoFilter, setVideoFilter] = useState<YouTubeFilter>('recommended');
+  const [nutritionData, setNutritionData] = useState<{
+    isEstimated: boolean;
+    label: string;
+    disclaimer: string;
+    perServing: {
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      fiber?: number;
+    };
+  } | null>(null);
 
   const baseServings = recipe.servings || 4;
   const isSaved = recipe.isSaved;
@@ -75,6 +88,24 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const pantryIngredientNames = useMemo(() => {
     return new Set(pantryItems.map((p) => p.name.toLowerCase().trim()));
   }, [pantryItems]);
+
+  // Load estimated USDA nutrition
+  useEffect(() => {
+    let isMounted = true;
+    if (visible && recipe?.id) {
+      api.nutrition
+        .getRecipeNutrition(recipe.id)
+        .then((res) => {
+          if (isMounted && res?.data) {
+            setNutritionData(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [visible, recipe?.id]);
 
   // Load YouTube videos when video tab is selected or recipe changes
   useEffect(() => {
@@ -362,30 +393,48 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
                 {/* Nutrition Card */}
                 <View style={styles.cardSection}>
-                  <Text style={styles.sectionHeader}>Nutritional Highlights</Text>
+                  <View style={styles.nutritionHeaderRow}>
+                    <Text style={styles.sectionHeader}>Nutritional Highlights</Text>
+                    <View style={styles.nutritionEstimatedBadge}>
+                      <Text style={styles.nutritionEstimatedBadgeText}>Estimated nutrition</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.nutritionDisclaimerText}>
+                    Values are approximate per serving based on standard USDA FoodData ingredients.
+                  </Text>
                   <View style={styles.nutritionGrid}>
                     <View style={styles.nutritionCell}>
                       <Text style={styles.nutritionLabel}>Calories</Text>
-                      <Text style={styles.nutritionVal}>{recipe.calories} kcal</Text>
+                      <Text style={styles.nutritionVal}>
+                        {Math.round((nutritionData?.perServing?.calories ?? recipe.calories ?? 350) * (currentServings / baseServings))} kcal
+                      </Text>
                     </View>
                     <View style={styles.nutritionCell}>
                       <Text style={styles.nutritionLabel}>Protein</Text>
                       <Text style={styles.nutritionVal}>
-                        {recipe.proteinGrams || Math.round(recipe.calories * 0.05)}g
+                        {Math.round((nutritionData?.perServing?.protein ?? recipe.proteinGrams ?? Math.round((recipe.calories || 350) * 0.05)) * (currentServings / baseServings) * 10) / 10}g
                       </Text>
                     </View>
                     <View style={styles.nutritionCell}>
                       <Text style={styles.nutritionLabel}>Carbs</Text>
                       <Text style={styles.nutritionVal}>
-                        {recipe.carbsGrams || Math.round(recipe.calories * 0.09)}g
+                        {Math.round((nutritionData?.perServing?.carbs ?? recipe.carbsGrams ?? Math.round((recipe.calories || 350) * 0.09)) * (currentServings / baseServings) * 10) / 10}g
                       </Text>
                     </View>
                     <View style={styles.nutritionCell}>
                       <Text style={styles.nutritionLabel}>Fat</Text>
                       <Text style={styles.nutritionVal}>
-                        {recipe.fatGrams || Math.round(recipe.calories * 0.04)}g
+                        {Math.round((nutritionData?.perServing?.fat ?? recipe.fatGrams ?? Math.round((recipe.calories || 350) * 0.04)) * (currentServings / baseServings) * 10) / 10}g
                       </Text>
                     </View>
+                    {nutritionData?.perServing?.fiber !== undefined && (
+                      <View style={styles.nutritionCell}>
+                        <Text style={styles.nutritionLabel}>Fiber</Text>
+                        <Text style={styles.nutritionVal}>
+                          {Math.round(nutritionData.perServing.fiber * (currentServings / baseServings) * 10) / 10}g
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
 
@@ -708,6 +757,33 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.weights.bold,
     color: COLORS.textPrimary,
     marginBottom: SPACING.xs,
+  },
+  nutritionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  nutritionEstimatedBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  nutritionEstimatedBadgeText: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: '#92400E',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  nutritionDisclaimerText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.sm,
+    fontStyle: 'italic',
   },
   bodyText: {
     fontSize: TYPOGRAPHY.sizes.body,

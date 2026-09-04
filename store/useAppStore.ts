@@ -18,7 +18,7 @@ import {
   VideoLanguageType,
 } from "../types";
 import { api } from "../services/api";
-import { mapMongoRecipeToClient } from "../services/recipeService";
+import { mapMongoRecipeToClient, recipeService } from "../services/recipeService";
 import { setStoredToken, clearStoredToken, getStoredToken } from "../services/apiClient";
 
 interface ToastState {
@@ -365,8 +365,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isHomeLoading: true, homeError: null });
     try {
       const filterCategory = category || get().activeHomeCategory;
+      const isGeneral = !filterCategory || filterCategory === "All" || filterCategory === "Fresh picks for you";
+      const cleanCategory = filterCategory?.startsWith("Category: ")
+        ? filterCategory.replace("Category: ", "")
+        : filterCategory;
+
       const res = await api.recipes.getRecipes({
-        cuisine: options?.cuisine || (filterCategory !== "All" ? filterCategory : undefined),
+        cuisine: options?.cuisine || (!isGeneral && !options?.category ? cleanCategory : undefined),
+        diet: options?.diet,
+        mealType: options?.mealType,
         search: options?.query,
         limit: 20,
       });
@@ -535,37 +542,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   findDishesICanMake: async () => {
     set({ isPantryCooking: true, pantryError: null });
     try {
-      const res = await api.recommendations.getRecommendations();
-      const all = [
-        ...(res.makeNow || []),
-        ...(res.almostThere || []),
-        ...(res.goodMatch || []),
-        ...(res.worthShoppingFor || []),
-      ];
-
-      const recommendations: PantryRecipeRecommendation[] = all.map((item) => {
-        const recipe = mapMongoRecipeToClient(item.recipe);
-        const missingCount = item.missingIngredients?.length || 0;
-        let group: "MAKE NOW" | "ALMOST THERE" | "GOOD MATCH" | "WORTH SHOPPING FOR" = "WORTH SHOPPING FOR";
-        if (missingCount === 0) group = "MAKE NOW";
-        else if (missingCount <= 2) group = "ALMOST THERE";
-        else if (item.matchPercentage >= 50) group = "GOOD MATCH";
-
-        return {
-          recipe,
-          matchPercentage: item.matchPercentage,
-          availableIngredients: item.matchedIngredients || [],
-          missingIngredients: item.missingIngredients || [],
-          optionalMissingIngredients: [],
-          reasonForRecommendation: item.explanation || `${item.matchPercentage}% ingredient match`,
-          group,
-          matchGroup: group,
-          totalRequiredCount: (item.matchedIngredients?.length || 0) + (item.missingIngredients?.length || 0),
-          availableCount: item.matchedIngredients?.length || 0,
-        };
+      const items = get().pantryItems.map((p) => p.name);
+      const prompt = get().naturalLanguagePantryInput;
+      const res = await recipeService.findPantryRecommendations({
+        selectedIngredients: items,
+        naturalLanguagePrompt: prompt,
       });
-
-      set({ pantryRecommendations: recommendations, isPantryCooking: false });
+      set({ pantryRecommendations: res.recommendations, isPantryCooking: false });
     } catch (err: any) {
       set({ isPantryCooking: false, pantryError: err.message || "Failed to find dishes" });
     }
