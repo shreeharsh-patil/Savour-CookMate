@@ -10,6 +10,7 @@ import {
   Auth,
 } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { setStoredToken, clearStoredToken } from "./apiClient";
 
 // These values MUST come from the Firebase Console (web app config). Do not fall back
@@ -31,33 +32,39 @@ const firebaseConfig = {
   storageBucket: firebaseProjectId ? `${firebaseProjectId}.appspot.com` : undefined,
 };
 
-let app: FirebaseApp;
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
+const isFirebaseConfigured = Boolean(firebaseProjectId && firebaseApiKey);
+let auth: Auth | null = null;
 
-// React Native persistence handler
-let auth: Auth;
-try {
-  // Try initializing with React Native AsyncStorage persistence if available
-  const { getReactNativePersistence } = require("firebase/auth");
-  if (getReactNativePersistence) {
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-  } else {
+if (isFirebaseConfigured) {
+  const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+  try {
+    // Web manages its own persistence. Native uses AsyncStorage when available.
+    if (Platform.OS === "web") {
+      auth = getAuth(app);
+    } else {
+      const { getReactNativePersistence } = require("firebase/auth");
+      auth = getReactNativePersistence
+        ? initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) })
+        : getAuth(app);
+    }
+  } catch {
+    // initializeAuth can be called more than once during fast refresh.
     auth = getAuth(app);
   }
-} catch {
-  auth = getAuth(app);
 }
 
 export { auth };
 
+function requireAuth(): Auth {
+  if (!auth) {
+    throw new Error("Firebase sign-in is not configured for this app.");
+  }
+  return auth;
+}
+
 export async function firebaseSignUp(email: string, pass: string, displayName?: string): Promise<{ token: string; user: FirebaseUser }> {
-  const cred = await createUserWithEmailAndPassword(auth, email, pass);
+  const cred = await createUserWithEmailAndPassword(requireAuth(), email, pass);
   if (displayName && cred.user) {
     await updateProfile(cred.user, { displayName });
   }
@@ -67,7 +74,7 @@ export async function firebaseSignUp(email: string, pass: string, displayName?: 
 }
 
 export async function firebaseSignIn(email: string, pass: string): Promise<{ token: string; user: FirebaseUser }> {
-  const cred = await signInWithEmailAndPassword(auth, email, pass);
+  const cred = await signInWithEmailAndPassword(requireAuth(), email, pass);
   const token = await cred.user.getIdToken();
   await setStoredToken(token);
   return { token, user: cred.user };
@@ -75,7 +82,8 @@ export async function firebaseSignIn(email: string, pass: string): Promise<{ tok
 
 export async function firebaseSignOut(): Promise<void> {
   try {
-    await fbSignOut(auth);
+    const configuredAuth = requireAuth();
+    await fbSignOut(configuredAuth);
   } catch (err) {
     console.warn("Firebase sign out warning:", err);
   }
@@ -83,6 +91,7 @@ export async function firebaseSignOut(): Promise<void> {
 }
 
 export async function getFreshFirebaseIdToken(): Promise<string | null> {
+  if (!auth) return null;
   const currentUser = auth.currentUser;
   if (!currentUser) return null;
   try {
