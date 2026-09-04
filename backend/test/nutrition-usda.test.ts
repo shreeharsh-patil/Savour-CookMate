@@ -58,8 +58,8 @@ describe("NutritionService & USDA Provider - Estimated Nutrition", () => {
           name: "Chicken and Rice Bowl",
           servings: 2,
           ingredients: [
-            { name: "chicken breast", quantity: "2" },
-            { name: "white rice", quantity: "2" },
+            { name: "chicken breast", quantity: "200", unit: "g" },
+            { name: "white rice", quantity: "200", unit: "g" },
           ],
         }),
       }),
@@ -80,7 +80,7 @@ describe("NutritionService & USDA Provider - Estimated Nutrition", () => {
     assert.ok(result?.disclaimer.includes("USDA FoodData"));
 
     // Expected per serving calculation:
-    // Chicken (2 qty * 165 cal = 330) + Rice (2 qty * 130 cal = 260) = 590 total calories
+    // Chicken (200g = 2 * 165 cal = 330) + Rice (200g = 2 * 130 cal = 260) = 590 total calories
     // 590 total calories / 2 servings = ~295 calories per serving
     assert.equal(result?.perServing.calories, 295);
 

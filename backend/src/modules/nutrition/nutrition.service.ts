@@ -6,10 +6,14 @@ import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { UsdaNutritionProvider } from "./providers/usda.provider";
 import { IngredientsService } from "../ingredients/ingredients.service";
 
+import { convertToGrams } from "./nutrition-converter";
+
 export interface EstimatedRecipeNutrition {
   isEstimated: boolean;
-  label: "Estimated nutrition";
-  disclaimer: "Estimated values based on standard USDA FoodData ingredient reference data. Not medical advice.";
+  unavailable?: boolean;
+  label: "Estimated nutrition" | "Nutrition unavailable";
+  confidence?: "high" | "medium" | "low" | "none";
+  disclaimer: string;
   perServing: {
     calories: number;
     protein: number;
@@ -96,6 +100,10 @@ export class NutritionService {
     const ingredients = recipe.ingredients || [];
     const servings = Math.max(1, recipe.servings || 2);
 
+    let convertedCount = 0;
+    const requiredIngredients = ingredients.filter((i) => !i.optional);
+    const totalCount = requiredIngredients.length || ingredients.length;
+
     // If recipe already has manual/stored nutrition, use that
     if (recipe.nutrition && (recipe.nutrition.calories > 0 || recipe.nutrition.protein > 0)) {
       totalCalories = recipe.nutrition.calories * servings;
@@ -103,34 +111,47 @@ export class NutritionService {
       totalCarbs = (recipe.nutrition.carbs || 0) * servings;
       totalFat = (recipe.nutrition.fat || 0) * servings;
       totalFiber = (recipe.nutrition.fiber || 0) * servings;
+      convertedCount = totalCount;
     } else {
-      // Estimate by resolving top ingredients against USDA cached data
-      for (const ing of ingredients.slice(0, 8)) {
+      // Estimate by converting all recipe ingredients through USDA FoodData reference grams
+      for (const ing of ingredients) {
         const nut = await this.getIngredientNutrition(ing.name);
         if (nut) {
-          // Multiply roughly by quantity (assuming ~100g serving reference per unit)
-          const qty = Math.max(0.5, Math.min(4, parseFloat(ing.quantity) || 1));
-          totalCalories += nut.nutrients.calories * qty;
-          totalProtein += nut.nutrients.protein * qty;
-          totalCarbs += nut.nutrients.carbs * qty;
-          totalFat += nut.nutrients.fat * qty;
-          totalFiber += nut.nutrients.fiber * qty;
+          const conversion = convertToGrams(ing.name, ing.quantity, ing.unit);
+          if (conversion.grams !== null && conversion.grams > 0) {
+            convertedCount++;
+            const factor = conversion.grams / 100; // USDA nutrition reference is per 100g
+            totalCalories += nut.nutrients.calories * factor;
+            totalProtein += nut.nutrients.protein * factor;
+            totalCarbs += nut.nutrients.carbs * factor;
+            totalFat += nut.nutrients.fat * factor;
+            totalFiber += nut.nutrients.fiber * factor;
+          }
         }
-      }
-
-      // Default fallback if no USDA matches found
-      if (totalCalories === 0) {
-        totalCalories = (recipe.nutrition?.calories || 350) * servings;
-        totalProtein = 18 * servings;
-        totalCarbs = 35 * servings;
-        totalFat = 12 * servings;
-        totalFiber = 4 * servings;
       }
     }
 
+    if (totalCalories === 0) {
+      // If USDA nutrition is unavailable, do NOT invent fake numbers. Return unavailable status!
+      return {
+        isEstimated: false,
+        unavailable: true,
+        label: "Nutrition unavailable",
+        confidence: "none",
+        disclaimer: "USDA nutritional information is currently unavailable for this recipe.",
+        perServing: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+        totalDish: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+      };
+    }
+
+    const ratio = totalCount > 0 ? convertedCount / totalCount : 0;
+    const confidence = ratio >= 0.8 ? "high" : ratio >= 0.5 ? "medium" : "low";
+
     return {
       isEstimated: true,
+      unavailable: false,
       label: "Estimated nutrition",
+      confidence,
       disclaimer: "Estimated values based on standard USDA FoodData ingredient reference data. Not medical advice.",
       perServing: {
         calories: Math.round(totalCalories / servings),
