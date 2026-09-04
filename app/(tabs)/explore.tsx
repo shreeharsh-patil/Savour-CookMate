@@ -120,6 +120,9 @@ export default function ExploreScreen() {
                   key={rail.label}
                   style={[styles.railPill, isSelected && styles.railPillSelected]}
                   onPress={() => handleCuratedRailSelect(rail)}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Curated rail ${rail.label}`}
                 >
                   <Text
                     style={[
@@ -150,6 +153,9 @@ export default function ExploreScreen() {
                   key={c}
                   style={[styles.filterPill, isSelected && styles.filterPillSelected]}
                   onPress={() => handleCuisineSelect(c)}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filter cuisine ${c}`}
                 >
                   <Text
                     style={[
@@ -186,6 +192,9 @@ export default function ExploreScreen() {
                     toggleDietary(d);
                     searchExploreRecipes();
                   }}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filter dietary ${d}`}
                 >
                   <Text
                     style={[
@@ -213,6 +222,9 @@ export default function ExploreScreen() {
             style={styles.refreshBtn}
             onPress={() => searchExploreRecipes()}
             disabled={isExploreLoading}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh explore recipes"
           >
             <RefreshCw
               size={14}

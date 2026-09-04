@@ -264,6 +264,9 @@ export default function PantryScreen() {
                       isSelected && styles.categoryPillSelected,
                     ]}
                     onPress={() => setSelectedCategory(cat)}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Category ${cat}`}
                   >
                     <Text
                       style={[
@@ -295,6 +298,9 @@ export default function PantryScreen() {
                         if (!isAdded) addPantryItem(st.name, st.category);
                       }}
                       disabled={isAdded}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={isAdded ? `${st.name} added` : `Add ${st.name}`}
                     >
                       {isAdded ? (
                         <Check size={11} color={COLORS.success} />
@@ -388,7 +394,9 @@ export default function PantryScreen() {
                   <Pressable
                     style={styles.deleteItemBtn}
                     onPress={() => removePantryItem(item.id)}
-                    hitSlop={8}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${item.name} from kitchen`}
                   >
                     <Trash2 size={13} color={COLORS.textLight} />
                   </Pressable>
@@ -776,8 +784,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.md,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
+    minHeight: 46,
     width: '48%',
+    flexGrow: 1,
   },
   inventoryItemInfo: {
     flex: 1,
@@ -794,7 +804,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   deleteItemBtn: {
-    padding: 2,
+    padding: 6,
   },
   findDishesBtn: {
     flexDirection: 'row',

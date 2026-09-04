@@ -110,6 +110,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
           <Pressable
             style={styles.cookButton}
             onPress={() => startCookingMode(recipe)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={`Cook ${recipe.title || recipe.name}`}
           >
@@ -120,6 +121,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
           <Pressable
             style={styles.detailsLink}
             onPress={handlePress}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={`View ${recipe.title || recipe.name}`}
           >

@@ -235,11 +235,15 @@ export default function ProfileScreen() {
                       {item.recipeTitle}
                     </Text>
                     <View style={styles.historyMetaRow}>
-                      <Star size={11} color="#FBBF24" fill="#FBBF24" />
-                      <Text style={styles.historyRating}>
-                        {item.rating || 5}.0
-                      </Text>
-                      <Text style={styles.historyDivider}>•</Text>
+                      {item.rating && item.rating > 0 ? (
+                        <>
+                          <Star size={11} color="#FBBF24" fill="#FBBF24" />
+                          <Text style={styles.historyRating}>
+                            {item.rating.toFixed(1)}
+                          </Text>
+                          <Text style={styles.historyDivider}>•</Text>
+                        </>
+                      ) : null}
                       <Text style={styles.historyDate}>
                         {new Date(item.cookedAt).toLocaleDateString()}
                       </Text>
