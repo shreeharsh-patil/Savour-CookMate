@@ -7,6 +7,13 @@ const LEGACY_TOKEN_KEY = "@savour_cookmate_auth_token";
 const GUEST_ID_KEY = "@yummy_tummy_guest_id";
 const LEGACY_GUEST_ID_KEY = "@savour_cookmate_guest_id";
 
+// Storage is comparatively expensive on mobile. Keep values in memory after
+// the first safe read while AsyncStorage remains the durable source of truth.
+let tokenCache: string | null | undefined;
+let tokenReadInFlight: Promise<string | null> | null = null;
+let guestIdCache: string | null = null;
+let guestIdReadInFlight: Promise<string> | null = null;
+
 async function readWithMigration(key: string, legacyKey: string): Promise<string | null> {
   const current = await AsyncStorage.getItem(key);
   if (current !== null) return current;
@@ -73,16 +80,27 @@ export const getBaseUrl = (): string => {
 };
 
 export async function getStoredToken(): Promise<string | null> {
+  if (tokenCache !== undefined) return tokenCache;
+  if (tokenReadInFlight) return tokenReadInFlight;
+
+  tokenReadInFlight = (async () => {
   try {
-    return await readWithMigration(TOKEN_KEY, LEGACY_TOKEN_KEY);
+      tokenCache = await readWithMigration(TOKEN_KEY, LEGACY_TOKEN_KEY);
+      return tokenCache;
   } catch {
-    return null;
-  }
+      tokenCache = null;
+      return null;
+    } finally {
+      tokenReadInFlight = null;
+    }
+  })();
+  return tokenReadInFlight;
 }
 
 export async function setStoredToken(token: string): Promise<void> {
   try {
     await AsyncStorage.setItem(TOKEN_KEY, token);
+    tokenCache = token;
   } catch (err) {
     console.warn("Error saving auth token:", err);
   }
@@ -91,6 +109,7 @@ export async function setStoredToken(token: string): Promise<void> {
 export async function clearStoredToken(): Promise<void> {
   try {
     await AsyncStorage.multiRemove([TOKEN_KEY, LEGACY_TOKEN_KEY]);
+    tokenCache = null;
   } catch (err) {
     console.warn("Error clearing auth token:", err);
   }
@@ -100,17 +119,29 @@ export async function clearStoredToken(): Promise<void> {
  * Retrieves or generates a unique persistent guest session identifier
  */
 export async function getPersistentGuestId(): Promise<string> {
+  if (guestIdCache) return guestIdCache;
+  if (guestIdReadInFlight) return guestIdReadInFlight;
+
+  guestIdReadInFlight = (async () => {
   try {
     const existing = await readWithMigration(GUEST_ID_KEY, LEGACY_GUEST_ID_KEY);
     if (existing && existing.startsWith("guest_")) {
+      guestIdCache = existing;
       return existing;
     }
     const newGuestId = `guest_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
     await AsyncStorage.setItem(GUEST_ID_KEY, newGuestId);
+    guestIdCache = newGuestId;
     return newGuestId;
   } catch {
-    return `guest_${Date.now().toString(36)}`;
-  }
+      const ephemeralGuestId = `guest_${Date.now().toString(36)}`;
+      guestIdCache = ephemeralGuestId;
+      return ephemeralGuestId;
+    } finally {
+      guestIdReadInFlight = null;
+    }
+  })();
+  return guestIdReadInFlight;
 }
 
 export interface RequestOptions extends RequestInit {

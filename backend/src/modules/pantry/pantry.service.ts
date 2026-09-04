@@ -110,8 +110,53 @@ export class PantryService {
   async getSmartSections(userId: string) {
     const pantryItems = await this.pantryModel.find({ userId }).lean();
     const pantryItemNames = pantryItems.map((p) => p.name || p.normalizedName);
+    const normalizedPantryNames = pantryItems
+      .map((item) => item.normalizedName || this.ingredientsService.normalizeIngredientName(item.name))
+      .filter(Boolean);
 
-    const recipes = await this.recipeModel.find({ status: "published" }).lean();
+    if (normalizedPantryNames.length === 0) {
+      return {
+        cookWithoutShopping: [],
+        useTheseIngredientsSoon: [],
+        missingOneIngredient: [],
+        bestMatch: [],
+        quickestMatch: [],
+      };
+    }
+
+    // Use the indexed normalized ingredient field to avoid loading and scoring
+    // every published recipe for every pantry visit. The projection deliberately
+    // excludes instructions/steps and other detail-only fields.
+    const recipeProjection = {
+      slug: 1,
+      name: 1,
+      imageUrl: 1,
+      thumbnailUrl: 1,
+      cuisine: 1,
+      category: 1,
+      totalTime: 1,
+      cookTime: 1,
+      ingredients: 1,
+    };
+    let recipes = await this.recipeModel
+      .find({
+        status: "published",
+        "ingredients.normalizedName": { $in: normalizedPantryNames },
+      })
+      .select(recipeProjection)
+      .limit(150)
+      .lean();
+
+    // Older imported recipes can lack normalized ingredients. Only use a small
+    // fallback set in that case; never fall back to a full collection scan.
+    if (recipes.length === 0) {
+      recipes = await this.recipeModel
+        .find({ status: "published" })
+        .select(recipeProjection)
+        .sort({ popularityScore: -1, updatedAt: -1 })
+        .limit(40)
+        .lean();
+    }
 
     const cookWithoutShopping: any[] = [];
     const missingOneIngredient: any[] = [];

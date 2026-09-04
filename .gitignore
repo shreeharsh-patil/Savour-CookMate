@@ -4,6 +4,7 @@ dist/
 backend/dist/
 coverage/
 *.tsbuildinfo
+.expo-performance-check/
 .DS_Store
 *.log
 .env*

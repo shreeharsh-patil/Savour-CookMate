@@ -212,20 +212,26 @@ export const recipeService = {
 
       // Map AI suggestions if present
       if (res.aiSuggestions && res.aiSuggestions.length > 0) {
+        const pantryNames = new Set((items || []).map((item: any) => String(item).toLowerCase().trim()));
         for (const sug of res.aiSuggestions) {
           if (sug.matchedRecipe) {
             const recipe = mapMongoRecipeToClient(sug.matchedRecipe);
+            const required = (sug.requiredIngredients || []).map((ingredient: any) => String(ingredient.name || ingredient).toLowerCase().trim()).filter(Boolean);
+            const availableIngredients = required.filter((ingredient: string) => pantryNames.has(ingredient));
+            const missingIngredients = required.filter((ingredient: string) => !pantryNames.has(ingredient));
+            const totalRequiredCount = required.length;
+            const availableCount = availableIngredients.length;
             recommendations.push({
               recipe,
-              matchPercentage: 80,
-              availableIngredients: sug.requiredIngredients || [],
-              missingIngredients: sug.missingImportantIngredients || [],
+              matchPercentage: totalRequiredCount ? Math.round((availableCount / totalRequiredCount) * 100) : 0,
+              availableIngredients,
+              missingIngredients,
               optionalMissingIngredients: sug.optionalIngredients || [],
               reasonForRecommendation: sug.reason || "Suggested from your ingredients",
               group: "GOOD MATCH",
               matchGroup: "GOOD MATCH",
-              totalRequiredCount: sug.requiredIngredients?.length || 1,
-              availableCount: sug.requiredIngredients?.length || 1,
+              totalRequiredCount,
+              availableCount,
             });
           }
         }

@@ -89,6 +89,7 @@ export class YouTubeService {
     recipeId?: string
   ): Promise<YouTubeVideoItem[]> {
     let exactRecipeVideo: VideoMetadata | null = null;
+    let linkedRecipeVideo: VideoMetadata | null = null;
     let recipeContext: any = null;
 
     // =========================================================================
@@ -112,25 +113,14 @@ export class YouTubeService {
             recipeDoc
           );
           if (linkedVideo) {
-            // A linked URL is only shown after a live provider/oEmbed check.
-            // Removed/private videos deliberately fall through to normal search.
-            exactRecipeVideo = await this.youtubeDataProvider.getVideoMetadata(linkedVideo.id)
-              || await this.invidiousProvider.getVideoMetadata(linkedVideo.id)
-              || await this.recipeSourceProvider.getVideoMetadata(linkedVideo.id);
-            if (exactRecipeVideo) exactRecipeVideo.relevanceScore = 100;
+            // Defer the network availability check until after the local cache
+            // check below. A valid cached response must not trigger provider I/O.
+            linkedRecipeVideo = linkedVideo;
           }
         }
       } catch (err: any) {
         this.logger.debug(`Recipe lookup for video skipped: ${err.message}`);
       }
-    }
-
-    // If an exact tutorial exists and user didn't request a non-default filter, return it directly!
-    if (exactRecipeVideo && filter === "recommended") {
-      const singleResult: YouTubeVideoItem[] = [
-        this.toCacheItem(exactRecipeVideo),
-      ];
-      return singleResult;
     }
 
     // =========================================================================
@@ -139,31 +129,28 @@ export class YouTubeService {
     try {
       const cached = await this.cacheModel.findOne({ cacheKey }).lean();
       if (cached && cached.expiresAt > new Date() && cached.videos?.length > 0) {
-        // Cache expiry alone cannot detect a later deletion/private change on
-        // YouTube. Verify each cached ID before returning it to the client.
-        const availability = await Promise.all(
-          cached.videos.map(async (video) => ({
-            id: video.id,
-            available: Boolean(await this.recipeSourceProvider.getVideoMetadata(video.id)),
-          }))
-        );
-        const availableIds = new Set(availability.filter((item) => item.available).map((item) => item.id));
-        const availableVideos = cached.videos.filter((video) => availableIds.has(video.id));
-        if (availableVideos.length === 0) {
-          this.logger.debug(`Discarded stale YouTube cache for ${dishName}: no videos remain available`);
-        } else {
-        // If we also had an exact recipe tutorial, prepend it if not already present
-        if (
-          exactRecipeVideo &&
-          !availableVideos.some((v) => v.id === exactRecipeVideo!.id)
-        ) {
-          return [this.toCacheItem(exactRecipeVideo), ...availableVideos];
-        }
-        return availableVideos;
-        }
+        // A cache hit must remain local. Re-validating every item here turns a
+        // three-video cache read into three external requests. Fresh searches
+        // validate candidates before caching; expiry triggers the next refresh.
+        const cachedVideos = cached.videos;
+        return cachedVideos;
       }
     } catch (err: any) {
       this.logger.warn(`Cache read error: ${err.message}`);
+    }
+
+    // A linked URL is only shown after a live provider/oEmbed check. Removed or
+    // private videos deliberately fall through to normal search on cache misses.
+    if (linkedRecipeVideo) {
+      exactRecipeVideo = await this.youtubeDataProvider.getVideoMetadata(linkedRecipeVideo.id)
+        || await this.invidiousProvider.getVideoMetadata(linkedRecipeVideo.id)
+        || await this.recipeSourceProvider.getVideoMetadata(linkedRecipeVideo.id);
+      if (exactRecipeVideo) exactRecipeVideo.relevanceScore = 100;
+    }
+
+    // If an exact tutorial exists and user didn't request a non-default filter, return it directly.
+    if (exactRecipeVideo && filter === "recommended") {
+      return [this.toCacheItem(exactRecipeVideo)];
     }
 
     // =========================================================================
