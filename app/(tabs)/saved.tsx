@@ -17,7 +17,6 @@ import {
   Folder,
   Utensils,
   Zap,
-  Sparkles,
   Heart,
   Layers,
 } from 'lucide-react-native';

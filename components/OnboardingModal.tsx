@@ -8,7 +8,7 @@ import {
   Pressable,
   SafeAreaView,
 } from 'react-native';
-import { Sparkles, ArrowRight, Check } from 'lucide-react-native';
+import { Utensils, ArrowRight, Check } from 'lucide-react-native';
 import { useAppStore } from '../store/useAppStore';
 import { PreferenceSelector } from './PreferenceSelector';
 import { BRAND } from '../constants/brand';
@@ -92,7 +92,7 @@ export const OnboardingModal: React.FC = () => {
           >
             <View style={styles.header}>
               <View style={styles.iconCircle}>
-                <Sparkles size={22} color={COLORS.primary} />
+                <Utensils size={22} color={COLORS.primary} />
               </View>
               <Text style={styles.brandTitle}>{BRAND.NAME}</Text>
               <Text style={styles.headline}>Personalize Your Kitchen</Text>

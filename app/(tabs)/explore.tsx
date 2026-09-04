@@ -7,7 +7,7 @@ import {
   SafeAreaView,
   Pressable,
 } from 'react-native';
-import { Search, SlidersHorizontal, Sparkles, Clock, RefreshCw } from 'lucide-react-native';
+import { Search, SlidersHorizontal, Clock, RefreshCw } from 'lucide-react-native';
 import { useAppStore } from '../../store/useAppStore';
 import { RecipeSearch } from '../../components/RecipeSearch';
 import { RecipeCard } from '../../components/RecipeCard';

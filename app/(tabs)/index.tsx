@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-  Sparkles,
   Refrigerator,
   ArrowRight,
   Flame,

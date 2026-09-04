@@ -33,6 +33,7 @@ import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme
 import { formatCookTime, formatRating, formatCalories } from '../utils/formatters';
 import { useAppStore } from '../store/useAppStore';
 import { youtubeService, YouTubeFilter } from '../services/youtubeService';
+import { analytics } from '../services/analytics';
 
 interface RecipeDetailModalProps {
   visible: boolean;
@@ -63,6 +64,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   const [currentServings, setCurrentServings] = useState<number>(recipe.servings || 4);
   const [checkedIngredients, setCheckedIngredients] = useState<Record<number, boolean>>({});
   const [videos, setVideos] = useState<YouTubeVideo[]>([]);
+  const [showAllVideos, setShowAllVideos] = useState<boolean>(false);
   const [isLoadingVideos, setIsLoadingVideos] = useState<boolean>(false);
   const [videoFilter, setVideoFilter] = useState<YouTubeFilter>('recommended');
 
@@ -101,6 +103,17 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
     };
   }, [recipe.id, videoFilter, userPreferences.videoLanguages]);
 
+  useEffect(() => {
+    if (visible && recipe) {
+      analytics.trackRecipeView(
+        recipe.id,
+        recipe.title || recipe.name,
+        recipe.mealType,
+        recipe.cuisine
+      );
+    }
+  }, [visible, recipe?.id]);
+
   const handleToggleCheck = (index: number) => {
     setCheckedIngredients((prev) => ({
       ...prev,
@@ -130,9 +143,19 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
     if (missing.length > 0) {
       addMissingToShoppingList(missing, recipe.title, recipe.id);
+      missing.forEach((item) => analytics.trackShoppingAdd(item));
     } else {
       setToast('All ingredients are already in your kitchen!');
     }
+  };
+
+  const handleToggleSave = () => {
+    if (!isSaved) {
+      analytics.trackRecipeSave(recipe.id, recipe.title || recipe.name);
+    } else {
+      analytics.trackRecipeUnsave(recipe.id);
+    }
+    toggleSaveRecipe(recipe);
   };
 
   const handleShare = async () => {
@@ -145,6 +168,8 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
   };
 
   const handleStartCooking = () => {
+    const stepsCount = recipe.parsedSteps?.length || recipe.instructions?.length || 0;
+    analytics.trackCookingStart(recipe.id, recipe.title || recipe.name, stepsCount);
     onClose();
     startCookingMode(recipe);
   };
@@ -179,7 +204,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
               <Pressable
                 style={styles.circleBtn}
-                onPress={() => toggleSaveRecipe(recipe)}
+                onPress={handleToggleSave}
                 hitSlop={8}
               >
                 <Bookmark
@@ -217,13 +242,20 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
 
               {/* Badges Strip */}
               <View style={styles.badgesStrip}>
-                <View style={styles.badgeItem}>
-                  <Star size={13} color="#FBBF24" fill="#FBBF24" />
-                  <Text style={styles.badgeBold}>
-                    {formatRating(recipe.ratingEstimate)}
-                  </Text>
-                </View>
-                <View style={styles.badgeDivider} />
+                {recipe.averageRating && recipe.averageRating > 0 ? (
+                  <>
+                    <View style={styles.badgeItem}>
+                      <Star size={13} color="#FBBF24" fill="#FBBF24" />
+                      <Text style={styles.badgeBold}>
+                        {formatRating(recipe.averageRating)}
+                      </Text>
+                      {recipe.ratingCount ? (
+                        <Text style={styles.badgeValue}>({recipe.ratingCount})</Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.badgeDivider} />
+                  </>
+                ) : null}
                 <View style={styles.badgeItem}>
                   <Clock size={13} color={COLORS.textSecondary} />
                   <Text style={styles.badgeValue}>
@@ -234,7 +266,7 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 <View style={styles.badgeItem}>
                   <Flame size={13} color={COLORS.primary} />
                   <Text style={styles.badgeValue}>
-                    {formatCalories(recipe.calories)}
+                    {recipe.calories ? `${recipe.calories} kcal` : 'Moderate'}
                   </Text>
                 </View>
                 <View style={styles.badgeDivider} />
@@ -463,13 +495,31 @@ export const RecipeDetailModal: React.FC<RecipeDetailModalProps> = ({
                 </View>
 
                 {videos.length > 0 ? (
-                  videos.map((vid) => (
-                    <VideoCard
-                      key={vid.id}
-                      video={vid}
-                      onPress={(v) => setActiveVideo(v)}
-                    />
-                  ))
+                  <>
+                    {(showAllVideos ? videos : videos.slice(0, 3)).map((vid) => (
+                      <VideoCard
+                        key={vid.id}
+                        video={vid}
+                        onPress={(v) => {
+                          analytics.trackYoutubeOpen(v.id, v.title, recipe.id);
+                          setActiveVideo(v);
+                        }}
+                      />
+                    ))}
+
+                    {videos.length > 3 && (
+                      <Pressable
+                        style={styles.showMoreVideosBtn}
+                        onPress={() => setShowAllVideos(!showAllVideos)}
+                      >
+                        <Text style={styles.showMoreVideosText}>
+                          {showAllVideos
+                            ? 'Show Top 3 Only'
+                            : `View All ${videos.length} Tutorials`}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </>
                 ) : (
                   <View style={styles.emptyVideos}>
                     <Text style={styles.emptyVideosText}>
@@ -752,6 +802,22 @@ const styles = StyleSheet.create({
   emptyVideosText: {
     fontSize: TYPOGRAPHY.sizes.subtext,
     color: COLORS.textMuted,
+  },
+  showMoreVideosBtn: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    marginTop: 4,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  showMoreVideosText: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.primary,
   },
   bottomBar: {
     position: 'absolute',

@@ -13,7 +13,7 @@ import {
   Plus,
   Trash2,
   ShoppingBag,
-  Sparkles,
+  Utensils,
   Check,
   Search,
   MessageSquare,
@@ -344,9 +344,9 @@ export default function PantryScreen() {
                   <ActivityIndicator size="small" color={COLORS.textInverted} />
                 ) : (
                   <>
-                    <Sparkles size={14} color={COLORS.textInverted} />
+                    <Plus size={14} color={COLORS.textInverted} />
                     <Text style={styles.extractBtnText}>
-                      Extract & Add to Kitchen
+                      Add Items to Kitchen
                     </Text>
                   </>
                 )}
@@ -420,7 +420,7 @@ export default function PantryScreen() {
             </>
           ) : (
             <>
-              <Sparkles size={18} color={COLORS.textInverted} />
+              <Utensils size={18} color={COLORS.textInverted} />
               <Text style={styles.findDishesBtnText}>
                 Find dishes I can make
               </Text>

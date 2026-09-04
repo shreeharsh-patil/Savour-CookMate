@@ -51,10 +51,16 @@ export const api = {
       );
     },
     getRecipeDetail: (id: string) => apiClient<any>(`/api/v1/recipes/${id}`),
-    rateRecipe: (id: string, rating: number, comment?: string) =>
+    rateRecipe: (
+      id: string,
+      rating: number,
+      comment?: string,
+      difficultyFeedback?: string,
+      wouldCookAgain?: boolean
+    ) =>
       apiClient<{ averageRating: number; ratingCount: number }>(`/api/v1/recipes/${id}/rate`, {
         method: "POST",
-        body: JSON.stringify({ rating, comment }),
+        body: JSON.stringify({ rating, comment, difficultyFeedback, wouldCookAgain }),
       }),
     recordCook: (id: string, durationMinutes?: number, notes?: string) =>
       apiClient<{ success: boolean; cookCount: number }>(`/api/v1/recipes/${id}/cook`, {

@@ -135,62 +135,86 @@ export const ShoppingListModal: React.FC = () => {
                 </Text>
               </View>
             ) : (
-              shoppingList.map((item) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.itemRow,
-                    item.checked && styles.itemRowChecked,
-                  ]}
-                >
-                  <Pressable
-                    style={styles.checkTouchable}
-                    onPress={() => toggleShoppingListItem(item.id)}
-                  >
-                    {item.checked ? (
-                      <CheckCircle2 size={18} color={COLORS.primary} />
-                    ) : (
-                      <Circle size={18} color={COLORS.textLight} />
-                    )}
-                    <View style={styles.itemTextCol}>
-                      <Text
+              (['Vegetables', 'Protein', 'Dairy', 'Spices', 'Grains', 'Other'] as const).map((catName) => {
+                const categoryItems = shoppingList.filter((item) => {
+                  const raw = (item.category || '').toLowerCase();
+                  if (catName === 'Vegetables') return /vegetable|produce|greens|herb/i.test(raw);
+                  if (catName === 'Protein') return /protein|meat|poultry|chicken|fish|seafood|egg|dal/i.test(raw);
+                  if (catName === 'Dairy') return /dairy|milk|cheese|paneer|curd|butter|yogurt/i.test(raw);
+                  if (catName === 'Spices') return /spice|masala|oil|salt|chilli/i.test(raw);
+                  if (catName === 'Grains') return /grain|rice|pasta|flour|bread/i.test(raw);
+                  // Other
+                  return !/vegetable|produce|greens|herb|protein|meat|poultry|chicken|fish|seafood|egg|dal|dairy|milk|cheese|paneer|curd|butter|yogurt|spice|masala|oil|salt|chilli|grain|rice|pasta|flour|bread/i.test(raw);
+                });
+
+                if (categoryItems.length === 0) return null;
+
+                return (
+                  <View key={catName} style={styles.categorySection}>
+                    <View style={styles.categoryHeaderRow}>
+                      <Text style={styles.categoryHeaderText}>{catName}</Text>
+                      <Text style={styles.categoryCountBadge}>{categoryItems.length}</Text>
+                    </View>
+
+                    {categoryItems.map((item) => (
+                      <View
+                        key={item.id}
                         style={[
-                          styles.itemName,
-                          item.checked && styles.itemNameChecked,
+                          styles.itemRow,
+                          item.checked && styles.itemRowChecked,
                         ]}
                       >
-                        {item.name}
-                      </Text>
-                      {item.recipeTitle ? (
-                        <Text style={styles.recipeTag}>
-                          For: {item.recipeTitle}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </Pressable>
+                        <Pressable
+                          style={styles.checkTouchable}
+                          onPress={() => toggleShoppingListItem(item.id)}
+                        >
+                          {item.checked ? (
+                            <CheckCircle2 size={18} color={COLORS.primary} />
+                          ) : (
+                            <Circle size={18} color={COLORS.textLight} />
+                          )}
+                          <View style={styles.itemTextCol}>
+                            <Text
+                              style={[
+                                styles.itemName,
+                                item.checked && styles.itemNameChecked,
+                              ]}
+                            >
+                              {item.name}
+                            </Text>
+                            {item.recipeTitle ? (
+                              <Text style={styles.recipeTag}>
+                                For: {item.recipeTitle}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </Pressable>
 
-                  <View style={styles.rowRightActions}>
-                    {item.checked && (
-                      <Pressable
-                        style={styles.moveToKitchenBtn}
-                        onPress={() => moveShoppingItemToPantry(item.id)}
-                        hitSlop={6}
-                      >
-                        <Text style={styles.moveToKitchenText}>To Kitchen</Text>
-                        <ArrowRight size={11} color={COLORS.success} />
-                      </Pressable>
-                    )}
+                        <View style={styles.rowRightActions}>
+                          {item.checked && (
+                            <Pressable
+                              style={styles.moveToKitchenBtn}
+                              onPress={() => moveShoppingItemToPantry(item.id)}
+                              hitSlop={6}
+                            >
+                              <Text style={styles.moveToKitchenText}>To Kitchen</Text>
+                              <ArrowRight size={11} color={COLORS.success} />
+                            </Pressable>
+                          )}
 
-                    <Pressable
-                      style={styles.deleteBtn}
-                      onPress={() => removeShoppingListItem(item.id)}
-                      hitSlop={6}
-                    >
-                      <Trash2 size={14} color={COLORS.textLight} />
-                    </Pressable>
+                          <Pressable
+                            style={styles.deleteBtn}
+                            onPress={() => removeShoppingListItem(item.id)}
+                            hitSlop={6}
+                          >
+                            <Trash2 size={14} color={COLORS.textLight} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    ))}
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
           </ScrollView>
         </View>
@@ -384,5 +408,32 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     padding: 4,
+  },
+  categorySection: {
+    marginBottom: SPACING.md,
+    gap: 8,
+  },
+  categoryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  categoryHeaderText: {
+    fontSize: 12,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  categoryCountBadge: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textMuted,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: RADIUS.full,
   },
 });

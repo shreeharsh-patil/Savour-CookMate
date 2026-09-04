@@ -7,10 +7,11 @@ import {
   ScrollView,
   Text,
 } from 'react-native';
-import { Search, X, Sparkles } from 'lucide-react-native';
+import { Search, X, Compass } from 'lucide-react-native';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { BRAND } from '../constants/brand';
 import { NATURAL_SEARCH_SUGGESTIONS } from '../constants/categories';
+import { analytics } from '../services/analytics';
 
 interface RecipeSearchProps {
   onSearch: (query: string) => void;
@@ -25,11 +26,14 @@ export const RecipeSearch: React.FC<RecipeSearchProps> = ({
 
   const handleSubmit = () => {
     if (!query.trim()) return;
-    onSearch(query.trim());
+    const trimmed = query.trim();
+    analytics.trackSearch(trimmed);
+    onSearch(trimmed);
   };
 
   const handleSuggestionPress = (suggestion: string) => {
     setQuery(suggestion);
+    analytics.trackSearch(suggestion);
     onSearch(suggestion);
   };
 
@@ -65,7 +69,7 @@ export const RecipeSearch: React.FC<RecipeSearchProps> = ({
           contentContainerStyle={styles.suggestionsContainer}
         >
           <View style={styles.suggestionLabel}>
-            <Sparkles size={11} color={COLORS.primary} />
+            <Compass size={12} color={COLORS.primary} />
             <Text style={styles.suggestionLabelText}>Try:</Text>
           </View>
           {NATURAL_SEARCH_SUGGESTIONS.map((item) => (

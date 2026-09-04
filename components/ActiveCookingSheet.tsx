@@ -6,6 +6,9 @@ import {
   Pressable,
   SafeAreaView,
   Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import {
   X,
@@ -17,12 +20,22 @@ import {
   Lightbulb,
   Clock,
   Plus,
+  Star,
+  ThumbsUp,
+  ThumbsDown,
+  Eye,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../store/useAppStore';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
+import { useKeepAwake } from 'expo-keep-awake';
+import { api } from '../services/api';
+import { analytics } from '../services/analytics';
+
 export const ActiveCookingSheet: React.FC = () => {
+  useKeepAwake();
+
   const isCookingMode = useAppStore((state) => state.isCookingMode);
   const selectedRecipe = useAppStore((state) => state.selectedRecipe);
   const exitCookingMode = useAppStore((state) => state.exitCookingMode);
@@ -36,6 +49,14 @@ export const ActiveCookingSheet: React.FC = () => {
   const setIsTimerRunning = useAppStore((state) => state.setIsTimerRunning);
   const addCookingHistory = useAppStore((state) => state.addCookingHistory);
   const setToast = useAppStore((state) => state.setToast);
+
+  // Post-cooking review state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [userRating, setUserRating] = useState<number>(5);
+  const [difficultyFeedback, setDifficultyFeedback] = useState<'Easy' | 'Just Right' | 'Challenging'>('Just Right');
+  const [wouldCookAgain, setWouldCookAgain] = useState<boolean>(true);
+  const [reviewNote, setReviewNote] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   if (!isCookingMode || !selectedRecipe) return null;
 
@@ -99,12 +120,41 @@ export const ActiveCookingSheet: React.FC = () => {
 
   const handleNext = () => {
     triggerHaptic();
+    analytics.trackCookingStepComplete(selectedRecipe.id, cookingStepIndex + 1, totalSteps);
     if (cookingStepIndex < totalSteps - 1) {
       setCookingStepIndex(cookingStepIndex + 1);
     } else {
-      // Finished cooking!
-      addCookingHistory(selectedRecipe, 5);
-      setToast('🎉 Recipe finished! Added to your cooking history.');
+      // Reached final step: open optional post-cook feedback
+      setShowRatingModal(true);
+    }
+  };
+
+  const handleCompleteWithReview = async (skipRating = false) => {
+    setIsSubmittingReview(true);
+    analytics.trackCookingComplete(
+      selectedRecipe.id,
+      totalSteps,
+      undefined,
+      skipRating ? undefined : userRating
+    );
+    try {
+      if (!skipRating && selectedRecipe.id) {
+        await api.recipes.rateRecipe(
+          selectedRecipe.id,
+          userRating,
+          reviewNote,
+          difficultyFeedback,
+          wouldCookAgain
+        );
+      }
+      await addCookingHistory(selectedRecipe, skipRating ? undefined : userRating, reviewNote);
+      setToast('🎉 Recipe completed! Added to your cooking history.');
+    } catch {
+      await addCookingHistory(selectedRecipe, skipRating ? undefined : userRating);
+      setToast('🎉 Recipe completed and saved locally.');
+    } finally {
+      setIsSubmittingReview(false);
+      setShowRatingModal(false);
       exitCookingMode();
     }
   };
@@ -143,9 +193,15 @@ export const ActiveCookingSheet: React.FC = () => {
             <Text style={styles.cookingTitle} numberOfLines={1}>
               {selectedRecipe.title || selectedRecipe.name}
             </Text>
-            <Text style={styles.stepProgressText}>
-              Step {cookingStepIndex + 1} of {totalSteps} ({progress}%)
-            </Text>
+            <View style={styles.topMetaRow}>
+              <Text style={styles.stepProgressText}>
+                Step {cookingStepIndex + 1} of {totalSteps} ({progress}%)
+              </Text>
+              <View style={styles.awakeBadge}>
+                <Eye size={10} color="#34D399" />
+                <Text style={styles.awakeBadgeText}>Screen Awake</Text>
+              </View>
+            </View>
           </View>
 
           <Pressable style={styles.exitBtn} onPress={handleExitPrompt} hitSlop={8}>
@@ -227,7 +283,7 @@ export const ActiveCookingSheet: React.FC = () => {
           </View>
         </View>
 
-        {/* Large Navigation Controls (Big thumb-friendly buttons for kitchen use) */}
+        {/* Large Navigation Controls */}
         <View style={styles.bottomNavRow}>
           <Pressable
             style={[
@@ -265,6 +321,136 @@ export const ActiveCookingSheet: React.FC = () => {
           </Pressable>
         </View>
       </View>
+
+      {/* Post Cooking Rating & Completion Modal */}
+      <Modal
+        visible={showRatingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => handleCompleteWithReview(true)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Dish Complete!</Text>
+            <Text style={styles.modalSubtitle}>
+              How was cooking {selectedRecipe.title || selectedRecipe.name}?
+            </Text>
+
+            {/* 1 - 5 Stars */}
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable
+                  key={star}
+                  onPress={() => setUserRating(star)}
+                  hitSlop={8}
+                >
+                  <Star
+                    size={32}
+                    color={star <= userRating ? '#FBBF24' : '#4B5563'}
+                    fill={star <= userRating ? '#FBBF24' : 'transparent'}
+                  />
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Difficulty feedback */}
+            <Text style={styles.feedbackLabel}>Recipe Difficulty</Text>
+            <View style={styles.difficultyRow}>
+              {(['Easy', 'Just Right', 'Challenging'] as const).map((diff) => (
+                <Pressable
+                  key={diff}
+                  style={[
+                    styles.diffBtn,
+                    difficultyFeedback === diff && styles.diffBtnSelected,
+                  ]}
+                  onPress={() => setDifficultyFeedback(diff)}
+                >
+                  <Text
+                    style={[
+                      styles.diffBtnText,
+                      difficultyFeedback === diff && styles.diffBtnTextSelected,
+                    ]}
+                  >
+                    {diff}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Would Cook Again */}
+            <Text style={styles.feedbackLabel}>Would you cook this again?</Text>
+            <View style={styles.wouldCookRow}>
+              <Pressable
+                style={[
+                  styles.wouldCookBtn,
+                  wouldCookAgain && styles.wouldCookBtnSelected,
+                ]}
+                onPress={() => setWouldCookAgain(true)}
+              >
+                <ThumbsUp size={14} color={wouldCookAgain ? COLORS.textInverted : COLORS.textPrimary} />
+                <Text
+                  style={[
+                    styles.wouldCookBtnText,
+                    wouldCookAgain && styles.wouldCookBtnTextSelected,
+                  ]}
+                >
+                  Yes
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.wouldCookBtn,
+                  !wouldCookAgain && styles.wouldCookBtnSelected,
+                ]}
+                onPress={() => setWouldCookAgain(false)}
+              >
+                <ThumbsDown size={14} color={!wouldCookAgain ? COLORS.textInverted : COLORS.textPrimary} />
+                <Text
+                  style={[
+                    styles.wouldCookBtnText,
+                    !wouldCookAgain && styles.wouldCookBtnTextSelected,
+                  ]}
+                >
+                  No
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Optional note */}
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Chef's notes (optional tweaks, salt adjustments)..."
+              placeholderTextColor="#6B7280"
+              value={reviewNote}
+              onChangeText={setReviewNote}
+            />
+
+            {/* Submit / Skip buttons */}
+            <View style={styles.modalActionRow}>
+              <Pressable
+                style={styles.skipBtn}
+                onPress={() => handleCompleteWithReview(true)}
+                disabled={isSubmittingReview}
+              >
+                <Text style={styles.skipBtnText}>Skip</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.saveReviewBtn}
+                onPress={() => handleCompleteWithReview(false)}
+                disabled={isSubmittingReview}
+              >
+                {isSubmittingReview ? (
+                  <ActivityIndicator size="small" color={COLORS.textInverted} />
+                ) : (
+                  <Text style={styles.saveReviewBtnText}>Save & Finish</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -492,6 +678,166 @@ const styles = StyleSheet.create({
   nextBtnText: {
     color: COLORS.textInverted,
     fontSize: TYPOGRAPHY.sizes.body,
+    fontWeight: TYPOGRAPHY.weights.bold,
+  },
+  topMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  awakeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+  },
+  awakeBadgeText: {
+    fontSize: 9,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: '#34D399',
+    textTransform: 'uppercase',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg,
+  },
+  modalCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    width: '100%',
+    maxWidth: 380,
+    borderWidth: 1,
+    borderColor: '#333333',
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: TYPOGRAPHY.sizes.h2,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textInverted,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 6,
+  },
+  feedbackLabel: {
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: '#D1D5DB',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  difficultyRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  diffBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#2A2A2A',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3D3D3D',
+  },
+  diffBtnSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  diffBtnText: {
+    fontSize: 11,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    color: '#D1D5DB',
+  },
+  diffBtnTextSelected: {
+    color: COLORS.textInverted,
+    fontWeight: TYPOGRAPHY.weights.bold,
+  },
+  wouldCookRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  wouldCookBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#2A2A2A',
+    borderWidth: 1,
+    borderColor: '#3D3D3D',
+  },
+  wouldCookBtnSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  wouldCookBtnText: {
+    fontSize: 12,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    color: '#D1D5DB',
+  },
+  wouldCookBtnTextSelected: {
+    color: COLORS.textInverted,
+    fontWeight: TYPOGRAPHY.weights.bold,
+  },
+  reviewInput: {
+    backgroundColor: '#262626',
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: '#3D3D3D',
+    padding: 10,
+    color: COLORS.textInverted,
+    fontSize: 12,
+    minHeight: 44,
+  },
+  modalActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  skipBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#2A2A2A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipBtnText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: TYPOGRAPHY.weights.medium,
+  },
+  saveReviewBtn: {
+    flex: 2,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveReviewBtnText: {
+    fontSize: 13,
+    color: COLORS.textInverted,
     fontWeight: TYPOGRAPHY.weights.bold,
   },
 });

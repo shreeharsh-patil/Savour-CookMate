@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   Clock,
   Star,
-  Sparkles,
   ChevronRight,
 } from 'lucide-react-native';
 import { useAppStore } from '../../store/useAppStore';
