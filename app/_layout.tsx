@@ -11,6 +11,9 @@ import { RecipeDetailModal } from "../components/RecipeDetailModal";
 import { ShoppingListModal } from "../components/ShoppingListModal";
 import { AuthModal } from "../components/AuthModal";
 import { OnboardingModal } from "../components/OnboardingModal";
+import * as SplashScreen from "expo-splash-screen";
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +39,16 @@ export default function RootLayout() {
   useEffect(() => {
     loadAuthUser();
   }, []);
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

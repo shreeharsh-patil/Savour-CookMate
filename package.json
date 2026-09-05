@@ -41,6 +41,7 @@
     "expo-image": "^57.0.4",
     "expo-linking": "^57.0.9",
     "expo-router": "^57.0.19",
+    "expo-splash-screen": "~57.0.8",
     "expo-status-bar": "^57.0.1",
     "fastify": "^5.12.3",
     "firebase": "^12.18.0",

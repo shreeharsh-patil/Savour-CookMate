@@ -7,23 +7,45 @@
     "icon": "./assets/icon.png",
     "scheme": "yummytummy",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF8F5"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yummytummy.app"
+      "bundleIdentifier": "com.yummytummy.app",
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FAF8F5"
+      }
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#FAF8F5"
+      },
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
         "backgroundColor": "#FAF8F5"
       },
       "package": "com.yummytummy.app"
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FAF8F5"
+      }
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "expo-splash-screen"
     ],
     "experiments": {
       "typedRoutes": true
