@@ -5,6 +5,7 @@ import { Recipe, RecipeDocument } from "../../database/schemas/recipe.schema";
 import { SearchHistory, SearchHistoryDocument } from "../../database/schemas/search-history.schema";
 import { RecipesService } from "../recipes/recipes.service";
 import { MealDbRecipeProvider } from "../recipes/providers/mealdb.provider";
+import { GeminiService } from "../gemini/gemini.service";
 
 export interface SearchOptions {
   query: string;
@@ -25,7 +26,8 @@ export class SearchService {
     @InjectModel(Recipe.name) private recipeModel: Model<RecipeDocument>,
     @InjectModel(SearchHistory.name) private searchHistoryModel: Model<SearchHistoryDocument>,
     private recipesService: RecipesService,
-    private mealDbProvider: MealDbRecipeProvider
+    private mealDbProvider: MealDbRecipeProvider,
+    private geminiService: GeminiService
   ) {}
 
   async searchRecipes(options: SearchOptions, userId?: string) {
@@ -75,8 +77,8 @@ export class SearchService {
       ];
     }
 
-    const skip = (Math.max(1, page) - 1) * Math.min(50, limit);
-    const take = Math.min(50, limit);
+    const take = Math.min(100, limit || 50);
+    const skip = (Math.max(1, page) - 1) * take;
 
     let [recipes, total] = await Promise.all([
       this.recipeModel.find(mongoQuery).sort({ popularityScore: -1, cookCount: -1 }).skip(skip).limit(take).lean(),
@@ -99,6 +101,19 @@ export class SearchService {
         }
       } catch (err: any) {
         this.logger.warn(`External recipe search error: ${err.message}`);
+      }
+    }
+
+    // 3. Gemini API Fallback: If searched item is not found, generate authentic recipe using Gemini API
+    if (recipes.length === 0 && effectiveQuery && effectiveQuery.length >= 2) {
+      try {
+        const aiRecipe = await this.geminiService.generateRecipeForDish(effectiveQuery);
+        if (aiRecipe) {
+          recipes.push(aiRecipe);
+          total = 1;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Gemini recipe search fallback error: ${err.message}`);
       }
     }
 

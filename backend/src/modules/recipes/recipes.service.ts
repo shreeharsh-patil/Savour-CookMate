@@ -150,8 +150,8 @@ export class RecipesService {
       sortObj = { createdAt: -1 };
     }
 
-    const skip = (Math.max(1, page) - 1) * Math.min(50, limit);
-    const take = Math.min(50, limit);
+    const take = Math.min(100, limit || 50);
+    const skip = (Math.max(1, page) - 1) * take;
 
     let [recipes, total] = await Promise.all([
       this.recipeModel.find(query).sort(sortObj).skip(skip).limit(take).lean(),
@@ -370,19 +370,19 @@ export class RecipesService {
 
   async getHomeFeed() {
     const [quickMeals, popular, categories, cuisines, recent] = await Promise.all([
-      this.recipeModel.find({ status: "published", totalTime: { $lte: 30 } }).sort({ popularityScore: -1 }).limit(8).lean(),
-      this.recipeModel.find({ status: "published" }).sort({ popularityScore: -1, cookCount: -1 }).limit(8).lean(),
+      this.recipeModel.find({ status: "published", totalTime: { $lte: 35 } }).sort({ popularityScore: -1 }).limit(20).lean(),
+      this.recipeModel.find({ status: "published" }).sort({ popularityScore: -1, cookCount: -1 }).limit(20).lean(),
       this.getCategories(),
       this.getCuisines(),
-      this.recipeModel.find({ status: "published" }).sort({ createdAt: -1 }).limit(8).lean(),
+      this.recipeModel.find({ status: "published" }).sort({ createdAt: -1 }).limit(20).lean(),
     ]);
 
     return {
       whatsOnYourMind: ["Breakfast", "Lunch", "Dinner", "Healthy", "Dessert", "Quick Bites"],
-      popularCuisines: cuisines.slice(0, 8),
+      popularCuisines: cuisines.slice(0, 12),
       quickMeals,
       popularWithUsers: popular,
-      categories: categories.slice(0, 12),
+      categories: categories.slice(0, 16),
       discoverNew: recent,
     };
   }

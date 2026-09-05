@@ -496,7 +496,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         diet: options?.diet,
         mealType: options?.mealType,
         search: options?.query,
-        limit: 20,
+        limit: 50,
       });
       const recipes = (res.recipes || []).map(mapMongoRecipeToClient);
       set({ homeRecipes: recipes, isHomeLoading: false });
@@ -509,7 +509,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!prompt.trim()) return;
     set({ isHomeLoading: true, homeError: null });
     try {
-      const res = await api.search.searchRecipes({ query: prompt.trim() });
+      const res = await api.search.searchRecipes({ query: prompt.trim(), limit: 50 });
       const recipes = (res.recipes || []).map(mapMongoRecipeToClient);
       set({ homeRecipes: recipes, isHomeLoading: false });
     } catch (err: any) {
@@ -569,6 +569,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         cuisine: cuisine !== "All" ? cuisine : undefined,
         diet: diet || undefined,
         maxCookingTime: params?.maxCookTimeMinutes,
+        limit: 50,
       });
 
       const recipes = (res.recipes || []).map(mapMongoRecipeToClient);

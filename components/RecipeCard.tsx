@@ -44,33 +44,33 @@ export const RecipeCard: React.FC<RecipeCardProps> = React.memo(({ recipe, onPre
           style={styles.image}
         />
 
-        {/* Top Badges */}
-        <View style={styles.topBadgesRow}>
-          {/* Diet Indicator (clean Swiggy/Zomato green/red square dot) */}
-          <View style={styles.dietBadge}>
-            <View
-              style={[
-                styles.dietDot,
-                { backgroundColor: isVeg ? COLORS.vegGreen : COLORS.nonVegRed },
-              ]}
-            />
-          </View>
-
-          {/* Bookmark Button */}
-          <Pressable
-            style={styles.bookmarkButton}
-            onPress={() => toggleSaveRecipe(recipe)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel={isSaved ? "Remove from saved recipes" : "Save recipe"}
-          >
-            <Bookmark
-              size={18}
-              color={isSaved ? COLORS.primary : COLORS.textPrimary}
-              fill={isSaved ? COLORS.primary : 'transparent'}
-            />
-          </Pressable>
+        {/* Top-Left: Dietary Indicator Badge */}
+        <View style={styles.dietBadge}>
+          <View
+            style={[
+              styles.dietDot,
+              { backgroundColor: isVeg ? COLORS.vegGreen : COLORS.nonVegRed },
+            ]}
+          />
         </View>
+
+        {/* Top-Right: Bookmark/Save Button */}
+        <Pressable
+          style={styles.bookmarkButton}
+          onPress={(e) => {
+            e?.stopPropagation?.();
+            toggleSaveRecipe(recipe);
+          }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={isSaved ? "Remove from saved recipes" : "Save recipe"}
+        >
+          <Bookmark
+            size={18}
+            color={isSaved ? COLORS.primary : COLORS.textPrimary}
+            fill={isSaved ? COLORS.primary : 'transparent'}
+          />
+        </Pressable>
 
         {/* Rating Floating Chip (Only real ratings shown) */}
         {recipe.averageRating && recipe.averageRating > 0 ? (
@@ -148,15 +148,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  topBadgesRow: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
   dietBadge: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
     width: 22,
     height: 22,
     borderRadius: 4,
@@ -165,6 +160,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   dietDot: {
     width: 10,
@@ -172,12 +172,20 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   bookmarkButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   ratingChip: {
     position: 'absolute',

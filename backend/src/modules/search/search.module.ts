@@ -3,10 +3,11 @@ import { DatabaseModule } from "../../database/database.module";
 import { SearchService } from "./search.service";
 import { SearchController } from "./search.controller";
 import { RecipesModule } from "../recipes/recipes.module";
+import { GeminiModule } from "../gemini/gemini.module";
 import { FirebaseAuthGuard } from "../../common/guards/firebase-auth.guard";
 
 @Module({
-  imports: [DatabaseModule, RecipesModule],
+  imports: [DatabaseModule, RecipesModule, GeminiModule],
   controllers: [SearchController],
   providers: [SearchService, FirebaseAuthGuard],
   exports: [SearchService],
