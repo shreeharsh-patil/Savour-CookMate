@@ -15,7 +15,7 @@ interface FoodImageProps {
 
 const FOOD_BLURHASH = 'L5PZfSi_.AyE_3t7t7R**0o#DgR4';
 
-export const FoodImage: React.FC<FoodImageProps> = ({
+export const FoodImage: React.FC<FoodImageProps> = React.memo(({
   source,
   thumbnailSource,
   style,
@@ -85,7 +85,7 @@ export const FoodImage: React.FC<FoodImageProps> = ({
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

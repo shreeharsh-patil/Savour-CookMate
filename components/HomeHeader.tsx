@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { BRAND } from '../constants/brand';
+import { BrandWordmark } from './BrandWordmark';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { useAppStore } from '../store/useAppStore';
 
@@ -8,7 +8,7 @@ interface HomeHeaderProps {
   onOpenProfile: () => void;
 }
 
-export const HomeHeader: React.FC<HomeHeaderProps> = ({
+export const HomeHeader: React.FC<HomeHeaderProps> = React.memo(({
   onOpenProfile,
 }) => {
   const userProfile = useAppStore((state) => state.userProfile);
@@ -27,7 +27,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
     <View style={styles.headerContainer}>
       <View style={styles.leftColumn}>
         <Text style={styles.greetingText}>Good food awaits, {firstName}</Text>
-        <Text style={styles.wordmark}>{BRAND.WORDMARK}</Text>
+        <BrandWordmark size={26} />
       </View>
 
       <View style={styles.rightActions}>
@@ -41,7 +41,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   headerContainer: {
@@ -61,12 +61,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontWeight: TYPOGRAPHY.weights.medium,
     marginBottom: 2,
-  },
-  wordmark: {
-    fontSize: 24,
-    fontWeight: TYPOGRAPHY.weights.bold,
-    color: COLORS.textPrimary,
-    letterSpacing: -0.5,
   },
   rightActions: {
     flexDirection: 'row',

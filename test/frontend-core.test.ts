@@ -6,6 +6,8 @@ import { scaleIngredientQuantity, formatCookTime, formatRating, formatCalories }
 import { computeAvailability } from "../utils/pantryAvailability";
 import { ApiError, classifyHttpStatus } from "../services/apiError";
 import { Ingredient, PantryItem } from "../types";
+import { BRAND } from "../constants/brand";
+import { COLORS, TYPOGRAPHY } from "../constants/theme";
 
 describe("Frontend Core - mapMongoRecipeToClient (Zero Fake Data Guarantee)", () => {
   test("preserves undefined / null for missing metadata without inventing fake defaults", () => {
@@ -268,3 +270,21 @@ describe("Frontend Core - ApiError & HTTP Status Classification", () => {
     assert.ok(error instanceof Error);
   });
 });
+
+describe("Frontend Core - Brand Identity & Logo Typography", () => {
+  test("defines authentic logo font family matching brand identity", () => {
+    assert.equal(TYPOGRAPHY.fontLogo, "Fredoka_700Bold");
+    assert.equal(TYPOGRAPHY.fontLogoSemiBold, "Fredoka_600SemiBold");
+  });
+
+  test("defines authentic logo color palette (orange + dark chocolate brown)", () => {
+    assert.equal(COLORS.logoOrange, "#FF5A3C");
+    assert.equal(COLORS.logoDark, "#352119");
+  });
+
+  test("standardizes brand wordmark and product name", () => {
+    assert.equal(BRAND.WORDMARK, "Yummy Tummy");
+    assert.equal(BRAND.NAME, "Yummy Tummy");
+  });
+});
+

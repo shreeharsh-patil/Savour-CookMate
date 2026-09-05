@@ -16,7 +16,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = React.memo(({ recipe, onPre
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
 
-  const isSaved = recipe.isSaved;
+  const isSaved = useAppStore((state) => state.savedRecipes.some((r) => r.id === recipe.id)) || Boolean(recipe.isSaved);
 
   const handlePress = () => {
     if (onPress) {

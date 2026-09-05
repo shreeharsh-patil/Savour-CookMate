@@ -18,6 +18,7 @@
     "test": "npm run lint && npm run test:frontend && npm run test:backend"
   },
   "dependencies": {
+    "@expo-google-fonts/fredoka": "^0.4.1",
     "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.1.1",
     "@fastify/rate-limit": "^11.2.0",
@@ -34,6 +35,7 @@
     "expo-clipboard": "~57.0.1",
     "expo-constants": "^57.0.17",
     "expo-crypto": "~57.0.2",
+    "expo-font": "~57.0.3",
     "expo-haptics": "^57.0.2",
     "expo-image": "^57.0.4",
     "expo-linking": "^57.0.9",

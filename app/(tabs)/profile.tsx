@@ -23,6 +23,7 @@ import { PreferenceSelector } from '../../components/PreferenceSelector';
 import { FoodImage } from '../../components/FoodImage';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../constants/theme';
 import { BRAND } from '../../constants/brand';
+import { BrandWordmark } from '../../components/BrandWordmark';
 import {
   DietType,
   CookingLevelType,
@@ -38,6 +39,7 @@ export default function ProfileScreen() {
   );
   const currentUser = useAppStore((state) => state.currentUser);
   const cookingHistory = useAppStore((state) => state.cookingHistory);
+  const savedRecipes = useAppStore((state) => state.savedRecipes);
   const pantryItems = useAppStore((state) => state.pantryItems);
   const loadProfileSummary = useAppStore((state) => state.loadProfileSummary);
   const setAuthModalOpen = useAppStore((state) => state.setAuthModalOpen);
@@ -167,7 +169,7 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statCell}>
-                <Text style={styles.statVal}>{userProfile?.savedRecipeCount ?? 0}</Text>
+                <Text style={styles.statVal}>{userProfile?.savedRecipeCount ?? savedRecipes.length}</Text>
                 <Text style={styles.statLabel}>Saved</Text>
               </View>
               <View style={styles.statDivider} />
@@ -283,7 +285,7 @@ export default function ProfileScreen() {
 
         {/* App Info Footer */}
         <View style={styles.appFooter}>
-          <Text style={styles.footerAppName}>{BRAND.NAME}</Text>
+          <BrandWordmark size={22} style={{ alignSelf: 'center', marginBottom: 4 }} />
           <Text style={styles.footerVersion}>Version {BRAND.VERSION}</Text>
           <Text style={styles.footerDesc}>{BRAND.DESCRIPTION}</Text>
         </View>

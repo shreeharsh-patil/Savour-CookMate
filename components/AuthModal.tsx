@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Mail, Lock, User, ShieldCheck } from 'lucide-react-native';
 import { useAppStore } from '../store/useAppStore';
 import { BRAND } from '../constants/brand';
+import { BrandWordmark } from './BrandWordmark';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 
 export const AuthModal: React.FC = () => {
@@ -87,7 +88,7 @@ export const AuthModal: React.FC = () => {
           </View>
 
           <View style={styles.content}>
-            <Text style={styles.brandTitle}>{BRAND.NAME}</Text>
+            <BrandWordmark size={32} style={{ alignSelf: 'center', marginBottom: SPACING.xs }} />
             <Text style={styles.subtitle}>
               {mode === 'signin'
                 ? 'Sign in to sync your recipes, pantry & preferences'

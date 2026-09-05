@@ -18,7 +18,7 @@ interface RecipeSearchProps {
   showSuggestions?: boolean;
 }
 
-export const RecipeSearch: React.FC<RecipeSearchProps> = ({
+export const RecipeSearch: React.FC<RecipeSearchProps> = React.memo(({
   onSearch,
   showSuggestions = true,
 }) => {
@@ -88,7 +88,7 @@ export const RecipeSearch: React.FC<RecipeSearchProps> = ({
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

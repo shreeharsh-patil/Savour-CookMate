@@ -111,6 +111,8 @@ const RecipeDetailModalContent: React.FC<{
     };
   }, [recipe, hydratedRecipe]);
 
+  const isSaved = useAppStore((state) => state.savedRecipes.some((r) => r.id === effectiveRecipe.id)) || Boolean(effectiveRecipe.isSaved);
+
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [currentServings, setCurrentServings] = useState<number>(recipe.servings || 4);
   const [checkedIngredients, setCheckedIngredients] = useState<Record<number, boolean>>({});
@@ -191,7 +193,6 @@ const RecipeDetailModalContent: React.FC<{
   } | null>(null);
 
   const baseServings = effectiveRecipe.servings || 4;
-  const isSaved = effectiveRecipe.isSaved;
   const recipeSteps = effectiveRecipe.parsedSteps && effectiveRecipe.parsedSteps.length > 0
     ? effectiveRecipe.parsedSteps
     : effectiveRecipe.instructions.map((text, index) => ({

@@ -11,7 +11,7 @@ interface VideoCardProps {
   onPress?: (video: YouTubeVideo) => void;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
+export const VideoCard: React.FC<VideoCardProps> = React.memo(({ video, onPress }) => {
   const matchLabel = video.matchType === 'strong'
     ? 'Strong Match'
     : video.matchType === 'related'
@@ -98,7 +98,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, onPress }) => {
       </View>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

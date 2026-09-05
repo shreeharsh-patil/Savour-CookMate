@@ -10,6 +10,10 @@ export const COLORS = {
   primaryDark: '#E0482B',
   primarySubtle: '#FFEBE5',
 
+  // Logo & Wordmark Palette (matches icon.png)
+  logoOrange: '#FF5A3C',
+  logoDark: '#352119',
+
   // Neutrals & Surfaces
   background: '#FAF8F5',
   card: '#FFFFFF',
@@ -69,6 +73,8 @@ export const RADIUS = {
 };
 
 export const TYPOGRAPHY = {
+  fontLogo: 'Fredoka_700Bold',
+  fontLogoSemiBold: 'Fredoka_600SemiBold',
   fontSerif: 'serif',
   fontSans: 'System',
 

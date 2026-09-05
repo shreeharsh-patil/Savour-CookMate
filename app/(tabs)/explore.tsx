@@ -77,7 +77,6 @@ export default function ExploreScreen() {
 
   const handleCuisineSelect = (c: string) => {
     setSelectedCuisine(c);
-    searchExploreRecipes({ cuisine: c });
   };
 
   const handleCuratedRailSelect = (rail: (typeof CURATED_RAILS)[0]) => {
@@ -190,7 +189,6 @@ export default function ExploreScreen() {
                   ]}
                   onPress={() => {
                     toggleDietary(d);
-                    searchExploreRecipes();
                   }}
                   hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                   accessibilityRole="button"

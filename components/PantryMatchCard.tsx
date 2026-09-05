@@ -12,7 +12,7 @@ interface PantryMatchCardProps {
   onPress?: () => void;
 }
 
-export const PantryMatchCard: React.FC<PantryMatchCardProps> = ({
+export const PantryMatchCard: React.FC<PantryMatchCardProps> = React.memo(({
   recommendation,
   onPress,
 }) => {
@@ -138,7 +138,7 @@ export const PantryMatchCard: React.FC<PantryMatchCardProps> = ({
       )}
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

@@ -12,6 +12,7 @@ import { Utensils, ArrowRight, Check } from 'lucide-react-native';
 import { useAppStore } from '../store/useAppStore';
 import { PreferenceSelector } from './PreferenceSelector';
 import { BRAND } from '../constants/brand';
+import { BrandWordmark } from './BrandWordmark';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import {
   DietType,
@@ -94,7 +95,7 @@ export const OnboardingModal: React.FC = () => {
               <View style={styles.iconCircle}>
                 <Utensils size={22} color={COLORS.primary} />
               </View>
-              <Text style={styles.brandTitle}>{BRAND.NAME}</Text>
+              <BrandWordmark size={28} style={{ marginBottom: SPACING.xs }} />
               <Text style={styles.headline}>Personalize Your Kitchen</Text>
               <Text style={styles.subtext}>
                 We personalize your recipe recommendations, pantry matches, and video tutorials to your exact taste.
