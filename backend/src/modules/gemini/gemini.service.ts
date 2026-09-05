@@ -211,7 +211,7 @@ Return JSON ONLY strictly matching this structure:
 Do NOT generate fake ratings, fake reviews, calories, videos, or markdown backticks outside JSON.`;
 
       const response = await this.aiClient.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         contents: prompt,
       });
 
@@ -239,7 +239,7 @@ Do NOT generate fake ratings, fake reviews, calories, videos, or markdown backti
             ingredients: normalizedList,
             preferences,
             suggestions,
-            modelVersion: "gemini-2.5-flash",
+            modelVersion: "gemini-3.6-flash",
             createdAt: new Date(),
             expiresAt,
           },
@@ -346,7 +346,7 @@ Extract user intent into structured JSON only:
 }`;
 
       const response = await this.aiClient.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         contents: prompt,
       });
 
@@ -432,7 +432,7 @@ Return JSON only:
 ]`;
 
       const response = await this.aiClient.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         contents: prompt,
       });
 
@@ -471,7 +471,7 @@ User question: "${question}".
 Provide a concise, practical, 1-2 sentence solution focused on heat control, timing, and flavor.`;
 
       const response = await this.aiClient.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         contents: prompt,
       });
 
@@ -552,7 +552,7 @@ Return JSON ONLY strictly matching this schema:
 Do NOT output markdown backticks outside JSON. Output pure valid JSON.`;
 
       const response = await this.aiClient.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.6-flash",
         contents: prompt,
       });
 
