@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -59,7 +59,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     if (activeMindCategory) {
       loadHomeRecipes(`Category: ${activeMindCategory}`, true, {
         query: activeMindCategory,
@@ -68,23 +68,25 @@ export default function HomeScreen() {
     } else {
       loadHomeRecipes(activeHomeCategory, true);
     }
-  };
+  }, [activeMindCategory, activeHomeCategory, loadHomeRecipes]);
 
-  const handleMindCategorySelect = (catName: string) => {
+  const handleMindCategorySelect = useCallback((catName: string) => {
     setActiveMindCategory(catName);
-  };
+  }, [setActiveMindCategory]);
 
-  const handleResetMindCategory = () => {
+  const handleResetMindCategory = useCallback(() => {
     setActiveMindCategory(null);
     loadHomeRecipes('Fresh picks for you', false);
-  };
+  }, [setActiveMindCategory, loadHomeRecipes]);
 
-  const featuredRecipe = homeRecipes[0];
-  const remainingRecipes = homeRecipes.slice(1);
-  const quickMeals = homeRecipes.filter((r) => {
-    const minutes = r.cookTime ?? r.totalTime;
-    return minutes != null && minutes <= 25;
-  });
+  const featuredRecipe = useMemo(() => homeRecipes[0], [homeRecipes]);
+  const remainingRecipes = useMemo(() => homeRecipes.slice(1), [homeRecipes]);
+  const quickMeals = useMemo(() => {
+    return homeRecipes.filter((r) => {
+      const minutes = r.cookTime ?? r.totalTime;
+      return minutes != null && minutes <= 25;
+    });
+  }, [homeRecipes]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

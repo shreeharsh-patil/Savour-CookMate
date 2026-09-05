@@ -20,7 +20,7 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = React.memo(({
 }) => {
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
-  const isSaved = useAppStore((state) => state.savedRecipes.some((r) => r.id === recipe.id)) || Boolean(recipe.isSaved);
+  const isSaved = useAppStore((state) => Boolean(state.savedRecipeIds[recipe.id])) || Boolean(recipe.isSaved);
 
   const handlePress = () => {
     if (onPress) {

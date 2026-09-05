@@ -95,6 +95,7 @@ interface AppState {
 
   // Saved Recipes
   savedRecipes: Recipe[];
+  savedRecipeIds: Record<string, boolean>;
   isSavedLoading: boolean;
   loadSavedRecipes: () => Promise<void>;
   toggleSaveRecipe: (recipe: Recipe) => Promise<void>;
@@ -723,6 +724,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Saved Recipes
   savedRecipes: [],
+  savedRecipeIds: {},
   isSavedLoading: false,
 
   loadSavedRecipes: async () => {
@@ -733,7 +735,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         ...mapMongoRecipeToClient(f.recipe),
         isSaved: true,
       }));
-      set({ savedRecipes: recipes, isSavedLoading: false });
+      const idMap: Record<string, boolean> = {};
+      recipes.forEach((r) => {
+        if (r.id) idMap[r.id] = true;
+      });
+      set({ savedRecipes: recipes, savedRecipeIds: idMap, isSavedLoading: false });
     } catch {
       set({ isSavedLoading: false });
     }
@@ -750,7 +756,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   saveRecipe: async (recipe: Recipe) => {
     const updated = { ...recipe, isSaved: true };
-    set((state) => ({ savedRecipes: [updated, ...state.savedRecipes.filter((r) => r.id !== recipe.id)] }));
+    set((state) => ({
+      savedRecipes: [updated, ...state.savedRecipes.filter((r) => r.id !== recipe.id)],
+      savedRecipeIds: { ...state.savedRecipeIds, [recipe.id]: true },
+    }));
     get().setToast({ message: "Recipe saved to vault", type: "success" });
     try {
       await api.favorites.toggleFavorite(recipe.id);
@@ -760,7 +769,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   unsaveRecipe: async (recipeId: string) => {
-    set((state) => ({ savedRecipes: state.savedRecipes.filter((r) => r.id !== recipeId) }));
+    set((state) => {
+      const nextIds = { ...state.savedRecipeIds };
+      delete nextIds[recipeId];
+      return {
+        savedRecipes: state.savedRecipes.filter((r) => r.id !== recipeId),
+        savedRecipeIds: nextIds,
+      };
+    });
     get().setToast({ message: "Recipe removed", type: "info" });
     try {
       await api.favorites.toggleFavorite(recipeId);
@@ -770,7 +786,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   isRecipeSaved: (recipeId: string) => {
-    return get().savedRecipes.some((r) => r.id === recipeId);
+    return Boolean(get().savedRecipeIds[recipeId]);
   },
 
   // Recently Viewed Recipes

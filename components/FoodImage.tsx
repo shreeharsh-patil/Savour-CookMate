@@ -23,59 +23,35 @@ export const FoodImage: React.FC<FoodImageProps> = React.memo(({
   borderRadius = 0,
   priority = 'normal',
 }) => {
-  const [hasPrimaryError, setHasPrimaryError] = useState(false);
-  const [hasThumbnailError, setHasThumbnailError] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const sourceUri = typeof source === 'object' ? source?.uri : String(source);
   const thumbUri = thumbnailSource?.uri;
 
-  // Reset error state when source URL changes
+  // Reset error state only when source URL changes
   useEffect(() => {
-    setHasPrimaryError(false);
-    setHasThumbnailError(false);
-  }, [sourceUri, thumbUri]);
+    setHasError(false);
+  }, [sourceUri]);
 
-  const resolvedSource = useMemo(() => {
-    // If primary failed, attempt thumbnail
-    if (hasPrimaryError) {
-      if (thumbUri && !hasThumbnailError) {
-        return { uri: thumbUri };
-      }
-      return null;
-    }
-
-    // Check if valid source exists
-    if (typeof source === 'object') {
-      if (!source.uri || source.uri.trim() === '') {
-        if (thumbUri && !hasThumbnailError) {
-          return { uri: thumbUri };
-        }
-        return null;
-      }
-    }
-    return source;
-  }, [source, sourceUri, thumbUri, hasPrimaryError, hasThumbnailError]);
-
-  const handleError = () => {
-    if (!hasPrimaryError) {
-      setHasPrimaryError(true);
-    } else {
-      setHasThumbnailError(true);
-    }
-  };
+  const resolvedUri = hasError ? thumbUri : sourceUri;
 
   return (
     <View style={[styles.container, { borderRadius }, style]}>
-      {resolvedSource ? (
+      {resolvedUri && resolvedUri.trim() !== '' ? (
         <ExpoImage
-          source={resolvedSource}
+          source={{ uri: resolvedUri }}
           placeholder={{ blurhash: FOOD_BLURHASH }}
           contentFit={contentFit}
-          transition={200}
+          transition={100}
           cachePolicy="memory-disk"
           priority={priority}
+          recyclingKey={resolvedUri}
           style={[styles.image, { borderRadius }]}
-          onError={handleError}
+          onError={() => {
+            if (!hasError && thumbUri) {
+              setHasError(true);
+            }
+          }}
         />
       ) : (
         <View style={[styles.missingContainer, { borderRadius }]}>

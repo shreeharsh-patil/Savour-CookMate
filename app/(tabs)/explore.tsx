@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -70,16 +70,16 @@ export default function ExploreScreen() {
     }
   }, []);
 
-  const handleSearch = (q: string) => {
+  const handleSearch = useCallback((q: string) => {
     setSearchQuery(q);
     searchExploreRecipes({ query: q });
-  };
+  }, [setSearchQuery, searchExploreRecipes]);
 
-  const handleCuisineSelect = (c: string) => {
+  const handleCuisineSelect = useCallback((c: string) => {
     setSelectedCuisine(c);
-  };
+  }, [setSelectedCuisine]);
 
-  const handleCuratedRailSelect = (rail: (typeof CURATED_RAILS)[0]) => {
+  const handleCuratedRailSelect = useCallback((rail: (typeof CURATED_RAILS)[0]) => {
     setActiveCuratedRail(rail.label);
     searchExploreRecipes({
       query: rail.query,
@@ -87,7 +87,7 @@ export default function ExploreScreen() {
       dietary: rail.dietary,
       maxCookTimeMinutes: rail.maxCookTimeMinutes,
     });
-  };
+  }, [searchExploreRecipes]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
