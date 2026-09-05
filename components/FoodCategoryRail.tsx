@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
+  Platform,
 } from 'react-native';
 import { FoodImage } from './FoodImage';
 import { WHAT_ON_YOUR_MIND, FoodCategory } from '../constants/categories';
@@ -48,23 +49,32 @@ export const FoodCategoryRail: React.FC<FoodCategoryRailProps> = ({
           return (
             <Pressable
               key={cat.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={`${cat.name}, ${cat.subtitle}`}
               style={styles.categoryItem}
               onPress={() => onSelectCategory(cat.name)}
             >
               <View
-                style={isSelected ? [styles.imageWrapper, styles.imageWrapperSelected] : styles.imageWrapper}
+                style={[
+                  styles.imageWrapper,
+                  isSelected && styles.imageWrapperSelected,
+                ]}
               >
                 <View style={styles.imageContainer}>
                   <FoodImage
                     source={{ uri: cat.imageUrl }}
                     style={styles.circleImage}
-                    borderRadius={30}
+                    borderRadius={9999}
                     contentFit="cover"
                   />
                 </View>
               </View>
               <Text
-                style={isSelected ? [styles.categoryName, styles.categoryNameSelected] : styles.categoryName}
+                style={[
+                  styles.categoryName,
+                  isSelected && styles.categoryNameSelected,
+                ]}
                 numberOfLines={1}
               >
                 {cat.name}
@@ -116,31 +126,35 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     alignItems: 'center',
-    width: 68,
+    width: 76,
+    ...(Platform.OS === 'web' ? { outlineWidth: 0 } : {}),
   },
   imageWrapper: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    marginBottom: 6,
+    width: 76,
+    height: 76,
+    borderRadius: 9999,
+    borderWidth: 2.5,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 6,
+    backgroundColor: 'transparent',
   },
   imageWrapperSelected: {
     borderColor: COLORS.primary,
-    borderWidth: 2,
-    padding: 2,
+    borderRadius: 9999,
   },
   imageContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 9999,
     overflow: 'hidden',
+    backgroundColor: COLORS.surface,
   },
   circleImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 9999,
   },
   categoryName: {
     fontSize: TYPOGRAPHY.sizes.caption,

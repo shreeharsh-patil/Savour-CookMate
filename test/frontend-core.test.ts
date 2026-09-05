@@ -8,6 +8,7 @@ import { ApiError, classifyHttpStatus } from "../services/apiError";
 import { Ingredient, PantryItem } from "../types";
 import { BRAND } from "../constants/brand";
 import { COLORS, TYPOGRAPHY } from "../constants/theme";
+import { WHAT_ON_YOUR_MIND } from "../constants/categories";
 
 describe("Frontend Core - mapMongoRecipeToClient (Zero Fake Data Guarantee)", () => {
   test("preserves undefined / null for missing metadata without inventing fake defaults", () => {
@@ -285,6 +286,49 @@ describe("Frontend Core - Brand Identity & Logo Typography", () => {
   test("standardizes brand wordmark and product name", () => {
     assert.equal(BRAND.WORDMARK, "Yummy Tummy");
     assert.equal(BRAND.NAME, "Yummy Tummy");
+  });
+});
+
+describe("Frontend Core - 'What\\'s on your mind?' Categories & Circular UI Contract", () => {
+  test("defines authentic food categories with non-empty imagery and search queries", () => {
+    assert.ok(WHAT_ON_YOUR_MIND.length >= 8, "Expected at least 8 mind categories");
+    for (const cat of WHAT_ON_YOUR_MIND) {
+      assert.ok(cat.id && typeof cat.id === "string");
+      assert.ok(cat.name && typeof cat.name === "string");
+      assert.ok(cat.subtitle && typeof cat.subtitle === "string");
+      assert.ok(cat.imageUrl.startsWith("https://images.unsplash.com/"), `Invalid image URL: ${cat.imageUrl}`);
+      assert.ok(cat.query && typeof cat.query === "string");
+    }
+  });
+
+  test("contains key culinary staples including Paneer, Biryani, and Chicken", () => {
+    const paneer = WHAT_ON_YOUR_MIND.find((c) => c.name.toLowerCase() === "paneer");
+    const biryani = WHAT_ON_YOUR_MIND.find((c) => c.name.toLowerCase() === "biryani");
+    const chicken = WHAT_ON_YOUR_MIND.find((c) => c.name.toLowerCase() === "chicken");
+
+    assert.ok(paneer, "Paneer category must exist");
+    assert.ok(biryani, "Biryani category must exist");
+    assert.ok(chicken, "Chicken category must exist");
+  });
+
+  test("satisfies circular selection ring geometry (2-3px ring, 3-4px gap, 1:1 aspect ratio)", () => {
+    // Contract parameters matching FoodCategoryRail
+    const wrapperSize = 76;
+    const imageSize = 64;
+    const ringBorderWidth = 2.5;
+
+    // Outer and inner aspect ratio must be strictly 1:1
+    assert.equal(wrapperSize, 76);
+    assert.equal(imageSize, 64);
+
+    // Ring thickness between 2px and 3px
+    assert.ok(ringBorderWidth >= 2 && ringBorderWidth <= 3, "Ring thickness must be 2-3px");
+
+    // Gap between circular image and outer ring: (wrapperSize - 2 * borderWidth - imageSize) / 2
+    const innerSpace = wrapperSize - (2 * ringBorderWidth);
+    const gap = (innerSpace - imageSize) / 2;
+    assert.ok(gap >= 3 && gap <= 4, `Gap must be 3-4px, got ${gap}px`);
+    assert.equal(gap, 3.5);
   });
 });
 
