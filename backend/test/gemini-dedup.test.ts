@@ -12,11 +12,15 @@ describe("GeminiService - Deterministic Hashing & Request Deduplication", () => 
     findOne: () => ({
       lean: async () => null,
     }),
+    findOneAndUpdate: async () => ({}),
     create: async () => {},
   } as any;
   const mockRecipeModel = {
     find: () => ({
       lean: async () => [],
+    }),
+    findOne: () => ({
+      lean: async () => null,
     }),
   } as any;
   const mockMealDbProvider = {} as any;

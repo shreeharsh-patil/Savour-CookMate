@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Star, Clock } from 'lucide-react-native';
+import { Star, Clock, Bookmark } from 'lucide-react-native';
 import { Recipe } from '../types';
 import { FoodImage } from './FoodImage';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../constants/theme';
@@ -19,6 +19,8 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = React.memo(({
   onPress,
 }) => {
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
+  const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
+  const isSaved = useAppStore((state) => state.savedRecipes.some((r) => r.id === recipe.id)) || Boolean(recipe.isSaved);
 
   const handlePress = () => {
     if (onPress) {
@@ -53,6 +55,24 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = React.memo(({
             ]}
           />
         </View>
+        {/* Top-Right: Bookmark/Save Button */}
+        <Pressable
+          style={styles.bookmarkButton}
+          onPress={(e) => {
+            e?.stopPropagation?.();
+            toggleSaveRecipe(recipe);
+          }}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          accessibilityRole="button"
+          accessibilityLabel={isSaved ? "Remove from saved recipes" : "Save recipe"}
+        >
+          <Bookmark
+            size={13}
+            color={isSaved ? COLORS.primary : COLORS.textPrimary}
+            fill={isSaved ? COLORS.primary : 'transparent'}
+          />
+        </Pressable>
+
         {recipe.averageRating && recipe.averageRating > 0 ? (
           <View style={styles.ratingBadge}>
             <Star size={10} color="#FBBF24" fill="#FBBF24" />
@@ -122,6 +142,22 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  bookmarkButton: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    elevation: 2,
   },
   ratingBadge: {
     position: 'absolute',
