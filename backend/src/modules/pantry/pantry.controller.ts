@@ -12,6 +12,31 @@ import { PantryService, CreatePantryItemDto, UpdatePantryItemDto } from "./pantr
 import { FirebaseAuthGuard, AuthenticatedUser } from "../../common/guards/firebase-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 
+import { z } from "zod";
+import { validateRequest } from "../../common/validation/validate-request";
+
+const CreatePantryItemSchema = z.object({
+  name: z.string().min(1, "Ingredient name cannot be empty").max(100, "Ingredient name cannot exceed 100 characters"),
+  quantity: z.string().max(50).optional(),
+  unit: z.string().max(50).optional(),
+  expiryDate: z.string().max(50).optional(),
+  category: z.string().max(50).optional(),
+  lowStock: z.boolean().optional(),
+});
+
+const UpdatePantryItemSchema = z.object({
+  quantity: z.string().max(50).optional(),
+  unit: z.string().max(50).optional(),
+  expiryDate: z.string().max(50).optional(),
+  lowStock: z.boolean().optional(),
+});
+
+const FindDishesSchema = z.object({
+  ingredients: z.array(z.string().max(100)).max(50).optional(),
+  includeAi: z.boolean().optional(),
+  preferences: z.record(z.string(), z.any()).optional(),
+});
+
 @Controller("api/v1/pantry")
 @UseGuards(FirebaseAuthGuard)
 export class PantryController {
@@ -25,8 +50,9 @@ export class PantryController {
   @Post()
   async addItem(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreatePantryItemDto
+    @Body() rawBody: unknown
   ) {
+    const dto = validateRequest(CreatePantryItemSchema, rawBody);
     return this.pantryService.addItem(user.userId, dto);
   }
 
@@ -34,8 +60,9 @@ export class PantryController {
   async updateItem(
     @CurrentUser() user: AuthenticatedUser,
     @Param("id") id: string,
-    @Body() dto: UpdatePantryItemDto
+    @Body() rawBody: unknown
   ) {
+    const dto = validateRequest(UpdatePantryItemSchema, rawBody);
     return this.pantryService.updateItem(user.userId, id, dto);
   }
 
@@ -55,8 +82,9 @@ export class PantryController {
   @Post("find-dishes")
   async findDishes(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { ingredients?: string[]; includeAi?: boolean; preferences?: Record<string, any> }
+    @Body() rawBody: unknown
   ) {
+    const body = validateRequest(FindDishesSchema, rawBody);
     return this.pantryService.findDishesICanMake(
       user.userId,
       body.ingredients,

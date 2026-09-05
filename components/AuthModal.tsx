@@ -200,7 +200,7 @@ export const AuthModal: React.FC = () => {
               style={styles.guestBtn}
               onPress={handleGuestMode}
             >
-              <Text style={styles.guestBtnText}>Continue as Guest Chef</Text>
+              <Text style={styles.guestBtnText}>Continue as Guest</Text>
             </Pressable>
           </View>
         </View>

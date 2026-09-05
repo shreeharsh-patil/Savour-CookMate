@@ -17,14 +17,14 @@ export class Review {
   @Prop({ type: String, default: "" })
   comment: string;
 
-  @Prop({ type: String, default: "Just Right" })
+  @Prop({ type: String, enum: ["Too Easy", "Just Right", "Too Hard"], required: false })
   difficultyFeedback?: string;
 
-  @Prop({ type: Boolean, default: true })
+  @Prop({ type: Boolean, required: false })
   wouldCookAgain?: boolean;
 
-  @Prop({ type: String, default: "Home Cook" })
-  userName: string;
+  @Prop({ type: String, required: false })
+  userName?: string;
 }
 
 export const ReviewSchema = SchemaFactory.createForClass(Review);

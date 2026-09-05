@@ -401,17 +401,29 @@ export class RecipesService {
       throw new NotFoundException(`Recipe with id '${recipeId}' not found.`);
     }
 
-    await this.reviewModel.findOneAndUpdate(
-      { userId, recipeId },
-      {
-        userId,
-        recipeId,
-        rating,
-        comment: comment || "",
-        userName: userName || "Home Cook",
-        difficultyFeedback: difficultyFeedback || "Just Right",
-        wouldCookAgain: wouldCookAgain !== undefined ? wouldCookAgain : true,
-      },
+    const updateDoc: any = {
+      userId,
+      recipeId: recipe._id,
+      rating: Math.round(rating * 10) / 10,
+      comment: (comment || "").trim(),
+      userName: userName?.trim() || "Anonymous Cook",
+    };
+
+    if (difficultyFeedback) {
+      updateDoc.difficultyFeedback = difficultyFeedback;
+    } else {
+      updateDoc.$unset = { ...updateDoc.$unset, difficultyFeedback: 1 };
+    }
+
+    if (wouldCookAgain !== undefined && wouldCookAgain !== null) {
+      updateDoc.wouldCookAgain = Boolean(wouldCookAgain);
+    } else {
+      updateDoc.$unset = { ...updateDoc.$unset, wouldCookAgain: 1 };
+    }
+
+    await (this.reviewModel as any).findOneAndUpdate(
+      { userId, recipeId: recipe._id },
+      updateDoc,
       { upsert: true, new: true }
     );
 
@@ -439,26 +451,66 @@ export class RecipesService {
   }
 
   async recordCook(recipeId: string, userId: string, durationMinutes?: number, notes?: string) {
-    const recipe = await this.recipeModel.findById(recipeId);
+    let recipe: any = null;
+    if (mongoose.Types.ObjectId.isValid(recipeId)) {
+      recipe = await this.recipeModel.findById(recipeId);
+    }
+    if (!recipe) {
+      recipe = await this.recipeModel.findOne({ slug: recipeId });
+    }
+    if (!recipe) {
+      recipe = await this.recipeModel.findOne({ externalId: recipeId });
+    }
     if (!recipe) {
       throw new NotFoundException(`Recipe with id '${recipeId}' not found.`);
+    }
+
+    // Idempotent guard: Check for duplicate submissions within 15 seconds
+    const fifteenSecondsAgo = new Date(Date.now() - 15 * 1000);
+    const existingSession: any = await this.historyModel.findOne({
+      userId,
+      recipeId: recipe._id.toString(),
+      cookedAt: { $gte: fifteenSecondsAgo },
+    });
+
+    if (existingSession) {
+      const cookedDate = existingSession.cookedAt || new Date();
+      return {
+        success: true,
+        cookCount: recipe.cookCount || 1,
+        historyItem: {
+          id: existingSession._id.toString(),
+          recipeId: existingSession.recipeId,
+          recipeTitle: existingSession.recipeName,
+          cookedAt: cookedDate instanceof Date ? cookedDate.toISOString() : String(cookedDate),
+          notes: existingSession.notes,
+        },
+      };
     }
 
     recipe.cookCount = (recipe.cookCount || 0) + 1;
     await recipe.save();
 
-    await this.historyModel.create({
+    const historyDoc: any = await this.historyModel.create({
       userId,
       recipeId: recipe._id.toString(),
       recipeName: recipe.name,
       recipeImage: recipe.imageUrl,
-      durationMinutes: durationMinutes || recipe.totalTime || 30,
-      notes: notes || "",
+      durationMinutes: durationMinutes ?? recipe.totalTime ?? recipe.cookTime ?? undefined,
+      notes: (notes || "").trim(),
     });
 
+    const docDate = historyDoc?.cookedAt || new Date();
     return {
       success: true,
       cookCount: recipe.cookCount,
+      historyItem: {
+        id: historyDoc._id.toString(),
+        recipeId: historyDoc.recipeId,
+        recipeTitle: historyDoc.recipeName,
+        cookedAt: docDate instanceof Date ? docDate.toISOString() : String(docDate),
+        notes: historyDoc.notes,
+      },
     };
   }
 

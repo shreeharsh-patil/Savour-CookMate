@@ -1,15 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { CheckCircle2, Circle, Plus, Minus, AlertCircle, Copy } from 'lucide-react-native';
-import { Ingredient } from '../types';
+import { Ingredient, PantryItem, IngredientAvailability } from '../types';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { scaleIngredientQuantity } from '../utils/formatters';
+import { computeAvailability } from '../utils/pantryAvailability';
 
 interface IngredientListProps {
   ingredients: Ingredient[];
   baseServings: number;
   currentServings: number;
   pantryIngredientNames: Set<string>;
+  pantryItems?: PantryItem[];
   checkedItems: Record<number, boolean>;
   onToggleCheck: (index: number) => void;
   onIncrementServings: () => void;
@@ -24,6 +26,7 @@ export const IngredientList: React.FC<IngredientListProps> = ({
   baseServings,
   currentServings,
   pantryIngredientNames,
+  pantryItems = [],
   checkedItems,
   onToggleCheck,
   onIncrementServings,
@@ -33,11 +36,8 @@ export const IngredientList: React.FC<IngredientListProps> = ({
   onAddSingleMissing,
 }) => {
   const missingCount = ingredients.filter((ing) => {
-    const name = (ing.name || ing.item || '').toLowerCase().trim();
-    const norm = (ing.normalizedName || '').toLowerCase().trim();
-    const isAvailable =
-      pantryIngredientNames.has(name) || (norm && pantryIngredientNames.has(norm));
-    return !isAvailable && !ing.optional;
+    const { status } = computeAvailability(ing, '', pantryItems, pantryIngredientNames);
+    return (status === 'MISSING' || status === 'PARTIAL') && !ing.optional;
   }).length;
 
   return (
@@ -95,7 +95,7 @@ export const IngredientList: React.FC<IngredientListProps> = ({
           <View style={styles.missingNoticeLeft}>
             <AlertCircle size={15} color={COLORS.warning} />
             <Text style={styles.missingNoticeText}>
-              {missingCount} ingredient{missingCount > 1 ? 's' : ''} missing from your kitchen
+              {missingCount} ingredient{missingCount > 1 ? 's' : ''} missing or running low
             </Text>
           </View>
           <Pressable
@@ -114,17 +114,20 @@ export const IngredientList: React.FC<IngredientListProps> = ({
       <View style={styles.list}>
         {ingredients.map((ing, idx) => {
           const isChecked = Boolean(checkedItems[idx]);
-          const name = (ing.name || ing.item || '').toLowerCase().trim();
-          const norm = (ing.normalizedName || '').toLowerCase().trim();
-          const inPantry =
-            pantryIngredientNames.has(name) ||
-            (norm && pantryIngredientNames.has(norm));
+          const rawQty = ing.quantity || ing.amount || '';
+          const scaledQty = rawQty
+            ? scaleIngredientQuantity(rawQty, baseServings, currentServings)
+            : '';
 
-          const scaledQty = scaleIngredientQuantity(
-            ing.quantity || ing.amount || '1',
-            baseServings,
-            currentServings
+          const { status, label } = computeAvailability(
+            ing,
+            scaledQty,
+            pantryItems,
+            pantryIngredientNames
           );
+
+          const isAvailable = status === 'ENOUGH' || status === 'UNKNOWN_QUANTITY';
+          const isActionable = status === 'MISSING' || status === 'PARTIAL';
 
           return (
             <Pressable
@@ -137,7 +140,7 @@ export const IngredientList: React.FC<IngredientListProps> = ({
               onPress={() => onToggleCheck(idx)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: isChecked }}
-              accessibilityLabel={`${ing.name || ing.item}, ${scaledQty} ${ing.unit || ''}`}
+              accessibilityLabel={`${ing.name || ing.item}${scaledQty ? `, ${scaledQty}` : ''}${ing.unit ? ` ${ing.unit}` : ''}`}
             >
               <View style={styles.checkIcon}>
                 {isChecked ? (
@@ -160,37 +163,59 @@ export const IngredientList: React.FC<IngredientListProps> = ({
                   ) : null}
                 </Text>
 
-                <View style={styles.itemMeta}>
-                  <Text style={styles.itemQty}>
-                    {scaledQty} {ing.unit || ''}
-                  </Text>
-                  <Text style={styles.metaDivider}>•</Text>
-                  <Text style={styles.itemCategory}>{ing.category}</Text>
-                </View>
+                {(scaledQty || ing.unit || ing.category) ? (
+                  <View style={styles.itemMeta}>
+                    {scaledQty || ing.unit ? (
+                      <Text style={styles.itemQty}>
+                        {scaledQty ? `${scaledQty} ` : ''}{ing.unit || ''}
+                      </Text>
+                    ) : null}
+                    {ing.category && (scaledQty || ing.unit) ? (
+                      <Text style={styles.metaDivider}>•</Text>
+                    ) : null}
+                    {ing.category ? (
+                      <Text style={styles.itemCategory}>{ing.category}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
               </View>
 
               <Pressable
                 style={[
                   styles.pantryStatusTag,
-                  inPantry ? styles.pantryTagHave : styles.pantryTagMissing,
+                  isAvailable
+                    ? styles.pantryTagHave
+                    : status === 'PARTIAL'
+                    ? styles.pantryTagPartial
+                    : styles.pantryTagMissing,
                 ]}
                 onPress={() => {
-                  if (!inPantry && onAddSingleMissing) {
+                  if (isActionable && onAddSingleMissing) {
                     onAddSingleMissing(ing.name || ing.item || '');
                   }
                 }}
-                disabled={inPantry || !onAddSingleMissing}
+                disabled={!isActionable || !onAddSingleMissing}
                 hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                 accessibilityRole="button"
-                accessibilityLabel={inPantry ? `${ing.name} in kitchen` : `Add ${ing.name} to shopping list`}
+                accessibilityLabel={
+                  isAvailable
+                    ? `${ing.name} in kitchen`
+                    : status === 'PARTIAL'
+                    ? `${ing.name} partial in kitchen, add more`
+                    : `Add ${ing.name} to shopping list`
+                }
               >
                 <Text
                   style={[
                     styles.pantryStatusText,
-                    inPantry ? styles.pantryTextHave : styles.pantryTextMissing,
+                    isAvailable
+                      ? styles.pantryTextHave
+                      : status === 'PARTIAL'
+                      ? styles.pantryTextPartial
+                      : styles.pantryTextMissing,
                   ]}
                 >
-                  {inPantry ? 'In Kitchen' : '+ Add'}
+                  {label}
                 </Text>
               </Pressable>
             </Pressable>
@@ -198,6 +223,7 @@ export const IngredientList: React.FC<IngredientListProps> = ({
         })}
       </View>
     </View>
+
   );
 };
 
@@ -368,6 +394,9 @@ const styles = StyleSheet.create({
   pantryTagHave: {
     backgroundColor: COLORS.successLight,
   },
+  pantryTagPartial: {
+    backgroundColor: '#FEF3C7',
+  },
   pantryTagMissing: {
     backgroundColor: COLORS.surface,
   },
@@ -377,6 +406,9 @@ const styles = StyleSheet.create({
   },
   pantryTextHave: {
     color: COLORS.success,
+  },
+  pantryTextPartial: {
+    color: '#D97706',
   },
   pantryTextMissing: {
     color: COLORS.textMuted,

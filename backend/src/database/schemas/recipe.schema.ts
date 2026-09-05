@@ -11,11 +11,11 @@ export class RecipeIngredient {
   @Prop({ type: String, required: true, index: true })
   normalizedName: string;
 
-  @Prop({ type: String, required: true })
-  quantity: string;
+  @Prop({ type: String, required: false })
+  quantity?: string;
 
-  @Prop({ type: String, required: true })
-  unit: string;
+  @Prop({ type: String, required: false })
+  unit?: string;
 
   @Prop({ type: Boolean, default: false })
   optional: boolean;

@@ -7,6 +7,9 @@ import {
   ScrollView,
   Pressable,
   Share,
+  TextInput,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -25,7 +28,10 @@ import {
   Layers,
   UtensilsCrossed,
   ExternalLink,
+  ThumbsUp,
+  Send,
 } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useQuery } from '@tanstack/react-query';
 import { Recipe, YouTubeVideo } from '../types';
 import { FoodImage } from './FoodImage';
@@ -38,6 +44,7 @@ import { useAppStore } from '../store/useAppStore';
 import { youtubeService, YouTubeFilter } from '../services/youtubeService';
 import { analytics } from '../services/analytics';
 import { api } from '../services/api';
+import { mapMongoRecipeToClient } from '../services/recipeService';
 
 interface RecipeDetailModalProps {
   visible: boolean;
@@ -70,6 +77,40 @@ const RecipeDetailModalContent: React.FC<{
   const userPreferences = useAppStore((state) => state.userPreferences);
   const setToast = useAppStore((state) => state.setToast);
 
+  // TanStack Query: Hydrate full recipe details asynchronously without blocking modal open
+  const { data: hydratedRecipe, isLoading: isHydrating } = useQuery({
+    queryKey: ['recipe-detail', recipe.id],
+    queryFn: async () => {
+      try {
+        const res = await api.recipes.getRecipeDetail(recipe.id);
+        return res ? mapMongoRecipeToClient(res) : null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: Boolean(visible && recipe?.id),
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const effectiveRecipe = useMemo(() => {
+    if (!hydratedRecipe) return recipe;
+    return {
+      ...recipe,
+      ...hydratedRecipe,
+      ingredients: hydratedRecipe.ingredients?.length ? hydratedRecipe.ingredients : recipe.ingredients,
+      instructions: hydratedRecipe.instructions?.length ? hydratedRecipe.instructions : recipe.instructions,
+      parsedSteps: hydratedRecipe.parsedSteps?.length ? hydratedRecipe.parsedSteps : recipe.parsedSteps,
+      tips: hydratedRecipe.tips?.length ? hydratedRecipe.tips : recipe.tips,
+      substitutions: hydratedRecipe.substitutions?.length ? hydratedRecipe.substitutions : recipe.substitutions,
+      prepTime: hydratedRecipe.prepTime ?? recipe.prepTime,
+      cookTime: hydratedRecipe.cookTime ?? recipe.cookTime,
+      totalTime: hydratedRecipe.totalTime ?? recipe.totalTime,
+      servings: hydratedRecipe.servings ?? recipe.servings,
+      averageRating: hydratedRecipe.averageRating ?? recipe.averageRating,
+      ratingCount: hydratedRecipe.ratingCount ?? recipe.ratingCount,
+    };
+  }, [recipe, hydratedRecipe]);
+
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [currentServings, setCurrentServings] = useState<number>(recipe.servings || 4);
   const [checkedIngredients, setCheckedIngredients] = useState<Record<number, boolean>>({});
@@ -83,6 +124,25 @@ const RecipeDetailModalContent: React.FC<{
   } | null>(null);
   const [isMarkedCooked, setIsMarkedCooked] = useState(false);
 
+  // Review & Rating State
+  const [selectedRating, setSelectedRating] = useState<number>(0);
+  const [userComment, setUserComment] = useState<string>('');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
+  const [wouldCookAgain, setWouldCookAgain] = useState<boolean | null>(null);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [hasSubmittedReview, setHasSubmittedReview] = useState(false);
+  const [liveRating, setLiveRating] = useState<{ average: number | null; count: number }>({
+    average: recipe.averageRating ?? null,
+    count: recipe.ratingCount ?? 0,
+  });
+
+  useEffect(() => {
+    setLiveRating({
+      average: effectiveRecipe.averageRating ?? null,
+      count: effectiveRecipe.ratingCount ?? 0,
+    });
+  }, [effectiveRecipe.averageRating, effectiveRecipe.ratingCount]);
+
   // TanStack Query: Lazy-load YouTube videos ONLY when activeTab === 'videos'
   const {
     data: videos = [],
@@ -90,20 +150,20 @@ const RecipeDetailModalContent: React.FC<{
   } = useQuery({
     queryKey: [
       'recipe-videos',
-      recipe.id,
+      effectiveRecipe.id,
       videoFilter,
       userPreferences.videoLanguages,
     ],
     queryFn: async ({ signal }) => {
       return youtubeService.searchCookingVideos(
-        recipe.title || recipe.name,
+        effectiveRecipe.title || effectiveRecipe.name,
         videoFilter,
         userPreferences.videoLanguages,
-        recipe.id,
+        effectiveRecipe.id,
         signal
       );
     },
-    enabled: Boolean(visible && recipe && activeTab === 'videos'),
+    enabled: Boolean(visible && effectiveRecipe && activeTab === 'videos'),
     staleTime: 1000 * 60 * 15,
   });
 
@@ -130,11 +190,11 @@ const RecipeDetailModalContent: React.FC<{
     } | null;
   } | null>(null);
 
-  const baseServings = recipe.servings || 4;
-  const isSaved = recipe.isSaved;
-  const recipeSteps = recipe.parsedSteps && recipe.parsedSteps.length > 0
-    ? recipe.parsedSteps
-    : recipe.instructions.map((text, index) => ({
+  const baseServings = effectiveRecipe.servings || 4;
+  const isSaved = effectiveRecipe.isSaved;
+  const recipeSteps = effectiveRecipe.parsedSteps && effectiveRecipe.parsedSteps.length > 0
+    ? effectiveRecipe.parsedSteps
+    : effectiveRecipe.instructions.map((text, index) => ({
         stepNumber: index + 1,
         title: `Step ${index + 1}`,
         text,
@@ -148,9 +208,9 @@ const RecipeDetailModalContent: React.FC<{
   // Load estimated USDA nutrition
   useEffect(() => {
     let isMounted = true;
-    if (visible && recipe?.id) {
+    if (visible && effectiveRecipe?.id) {
       api.nutrition
-        .getRecipeNutrition(recipe.id)
+        .getRecipeNutrition(effectiveRecipe.id)
         .then((res) => {
           if (isMounted && res?.data) {
             setNutritionData(res.data);
@@ -161,16 +221,21 @@ const RecipeDetailModalContent: React.FC<{
     return () => {
       isMounted = false;
     };
-  }, [visible, recipe?.id]);
+  }, [visible, effectiveRecipe?.id]);
 
   useEffect(() => {
     setActiveTab('overview');
-    setCurrentServings(recipe.servings || 4);
+    setCurrentServings(effectiveRecipe.servings || 4);
     setCheckedIngredients({});
     setCompletedSteps({});
     setActiveTimer(null);
     setIsMarkedCooked(false);
-  }, [recipe.id]);
+    setSelectedRating(0);
+    setUserComment('');
+    setSelectedDifficulty(null);
+    setWouldCookAgain(null);
+    setHasSubmittedReview(false);
+  }, [effectiveRecipe.id]);
 
   useEffect(() => {
     if (!activeTimer?.isRunning) return undefined;
@@ -190,15 +255,15 @@ const RecipeDetailModalContent: React.FC<{
   }, [activeTimer?.isRunning, setToast]);
 
   useEffect(() => {
-    if (visible && recipe) {
+    if (visible && effectiveRecipe) {
       analytics.trackRecipeView(
-        recipe.id,
-        recipe.title || recipe.name,
-        recipe.mealType,
-        recipe.cuisine
+        effectiveRecipe.id,
+        effectiveRecipe.title || effectiveRecipe.name,
+        effectiveRecipe.mealType,
+        effectiveRecipe.cuisine
       );
     }
-  }, [visible, recipe?.id]);
+  }, [visible, effectiveRecipe?.id]);
 
   const handleToggleCheck = (index: number) => {
     setCheckedIngredients((prev) => ({
@@ -216,7 +281,7 @@ const RecipeDetailModalContent: React.FC<{
   };
 
   const handleAddAllMissing = () => {
-    const missing = recipe.ingredients
+    const missing = effectiveRecipe.ingredients
       .filter((ing) => {
         const name = (ing.name || ing.item || '').toLowerCase().trim();
         const norm = (ing.normalizedName || '').toLowerCase().trim();
@@ -228,51 +293,47 @@ const RecipeDetailModalContent: React.FC<{
       .map((ing) => ing.name || ing.item || '');
 
     if (missing.length > 0) {
-      addMissingToShoppingList(missing, recipe.title, recipe.id);
+      addMissingToShoppingList(missing, effectiveRecipe.title || effectiveRecipe.name, effectiveRecipe.id);
       missing.forEach((item) => analytics.trackShoppingAdd(item));
-      setToast(`🛒 Added ${missing.length} missing items to shopping list`);
+      setToast({ message: `Added ${missing.length} missing items to shopping list`, type: 'success' });
     } else {
-      setToast('All ingredients are already in your kitchen!');
+      setToast({ message: 'All ingredients are already in your kitchen!', type: 'info' });
     }
   };
 
   const handleAddSingleMissing = (ingredientName: string) => {
-    addMissingToShoppingList([ingredientName], recipe.title || recipe.name, recipe.id);
+    addMissingToShoppingList([ingredientName], effectiveRecipe.title || effectiveRecipe.name, effectiveRecipe.id);
     analytics.trackShoppingAdd(ingredientName);
-    setToast(`🛒 Added ${ingredientName} to shopping list`);
+    setToast({ message: `Added ${ingredientName} to shopping list`, type: 'success' });
   };
 
-  const handleCopyIngredients = () => {
-    const lines = recipe.ingredients.map((ing) => {
-      const qty = scaleIngredientQuantity(
-        ing.quantity || ing.amount || '1',
-        baseServings,
-        currentServings
-      );
-      return `• ${qty} ${ing.unit || ''} ${ing.name || ing.item || ''}`.trim();
+  const handleCopyIngredients = async () => {
+    const lines = effectiveRecipe.ingredients.map((ing) => {
+      const rawQty = ing.quantity || ing.amount || '';
+      const qty = rawQty
+        ? scaleIngredientQuantity(rawQty, baseServings, currentServings)
+        : '';
+      return `• ${qty ? `${qty} ` : ''}${ing.unit ? `${ing.unit} ` : ''}${ing.name || ing.item || ''}`.trim();
     });
-    const header = `${recipe.title || recipe.name} (${currentServings} servings):\n`;
-    Share.share({
-      message: header + lines.join('\n'),
-      title: `Ingredients for ${recipe.title || recipe.name}`,
-    }).catch(() => {});
-    setToast('📋 Ingredients list shared / copied!');
+    const header = `${effectiveRecipe.title || effectiveRecipe.name} (${currentServings} servings):\n`;
+    await Clipboard.setStringAsync(header + lines.join('\n'));
+    setToast({ message: 'Ingredients copied to clipboard!', type: 'success' });
   };
 
   const handleToggleSave = () => {
     if (!isSaved) {
-      analytics.trackRecipeSave(recipe.id, recipe.title || recipe.name);
+      analytics.trackRecipeSave(effectiveRecipe.id, effectiveRecipe.title || effectiveRecipe.name);
     } else {
-      analytics.trackRecipeUnsave(recipe.id);
+      analytics.trackRecipeUnsave(effectiveRecipe.id);
     }
-    toggleSaveRecipe(recipe);
+    toggleSaveRecipe(effectiveRecipe);
   };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        title: recipe.title,
-        message: `Check out this recipe for ${recipe.title} on Yummy Tummy!`,
+        title: effectiveRecipe.title || effectiveRecipe.name,
+        message: `Check out this recipe for ${effectiveRecipe.title || effectiveRecipe.name} on Yummy Tummy!`,
       });
     } catch {}
   };
@@ -284,10 +345,35 @@ const RecipeDetailModalContent: React.FC<{
   const handleMarkCooked = async () => {
     if (isMarkedCooked) return;
     setIsMarkedCooked(true);
-    await addCookingHistory(recipe);
-    api.recipes.recordCook(recipe.id).catch(() => {});
-    analytics.trackCookingComplete(recipe.id, recipeSteps.length);
+    await addCookingHistory(effectiveRecipe);
+    analytics.trackCookingComplete(effectiveRecipe.id, recipeSteps.length);
     setToast({ message: 'Added to your cooking history', type: 'success' });
+  };
+
+  const handleSubmitReview = async () => {
+    if (selectedRating < 1 || isSubmittingReview) return;
+    setIsSubmittingReview(true);
+    try {
+      const res = await api.recipes.rateRecipe(
+        effectiveRecipe.id,
+        selectedRating,
+        userComment.trim() || undefined,
+        selectedDifficulty || undefined,
+        wouldCookAgain !== null ? wouldCookAgain : undefined
+      );
+      if (res) {
+        setLiveRating({
+          average: res.averageRating,
+          count: res.ratingCount,
+        });
+        setHasSubmittedReview(true);
+        setToast({ message: 'Thank you for your rating!', type: 'success' });
+      }
+    } catch {
+      setToast({ message: 'Failed to submit rating. Please try again.', type: 'error' });
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   const formatTimer = (seconds: number) => {
@@ -345,63 +431,65 @@ const RecipeDetailModalContent: React.FC<{
             {/* Hero Image */}
             <View style={styles.heroWrapper}>
               <FoodImage
-                source={{ uri: recipe.imageUrl || '' }}
+                source={{ uri: effectiveRecipe.imageUrl || '' }}
                 style={styles.heroImage}
               />
               <View style={styles.heroOverlay} />
-              <View style={styles.cuisineTag}>
-                <Text style={styles.cuisineTagText}>{recipe.cuisine}</Text>
-              </View>
+              {effectiveRecipe.cuisine ? (
+                <View style={styles.cuisineTag}>
+                  <Text style={styles.cuisineTagText}>{effectiveRecipe.cuisine}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Header Info */}
             <View style={styles.headerInfo}>
-              <Text style={styles.recipeTitle}>{recipe.title || recipe.name}</Text>
+              <Text style={styles.recipeTitle}>{effectiveRecipe.title || effectiveRecipe.name}</Text>
               <Text style={styles.recipeTagline}>
-                {recipe.tagline || recipe.description}
+                {effectiveRecipe.tagline || effectiveRecipe.description}
               </Text>
 
               {/* Badges Strip */}
               <View style={styles.badgesStrip}>
-                {recipe.averageRating && recipe.averageRating > 0 ? (
+                {liveRating.average && liveRating.average > 0 ? (
                   <>
                     <View style={styles.badgeItem}>
                       <Star size={13} color="#FBBF24" fill="#FBBF24" />
                       <Text style={styles.badgeBold}>
-                        {formatRating(recipe.averageRating)}
+                        {formatRating(liveRating.average)}
                       </Text>
-                      {recipe.ratingCount ? (
-                        <Text style={styles.badgeValue}>({recipe.ratingCount})</Text>
+                      {liveRating.count ? (
+                        <Text style={styles.badgeValue}>({liveRating.count})</Text>
                       ) : null}
                     </View>
                     <View style={styles.badgeDivider} />
                   </>
                 ) : null}
-                {formatCookTime(recipe.cookTime || recipe.totalTime) ? (
+                {formatCookTime(effectiveRecipe.cookTime || effectiveRecipe.totalTime) ? (
                   <>
                     <View style={styles.badgeItem}>
                       <Clock size={13} color={COLORS.textSecondary} />
                       <Text style={styles.badgeValue}>
-                        {formatCookTime(recipe.cookTime || recipe.totalTime)}
+                        {formatCookTime(effectiveRecipe.cookTime || effectiveRecipe.totalTime)}
                       </Text>
                     </View>
                     <View style={styles.badgeDivider} />
                   </>
                 ) : null}
-                {recipe.calories ? (
+                {effectiveRecipe.calories ? (
                   <>
                     <View style={styles.badgeItem}>
                       <Flame size={13} color={COLORS.primary} />
                       <Text style={styles.badgeValue}>
-                        {`${recipe.calories} kcal`}
+                        {`${effectiveRecipe.calories} kcal`}
                       </Text>
                     </View>
                     <View style={styles.badgeDivider} />
                   </>
                 ) : null}
-                {recipe.difficulty ? (
+                {effectiveRecipe.difficulty ? (
                   <View style={styles.badgeItem}>
-                    <Text style={styles.badgeValue}>{recipe.difficulty}</Text>
+                    <Text style={styles.badgeValue}>{effectiveRecipe.difficulty}</Text>
                   </View>
                 ) : null}
               </View>
@@ -623,10 +711,10 @@ const RecipeDetailModalContent: React.FC<{
                 </View>
 
                 {/* Chef Tips */}
-                {recipe.tips && recipe.tips.length > 0 ? (
+                {effectiveRecipe.tips && effectiveRecipe.tips.length > 0 ? (
                   <View style={styles.cardSection}>
                     <Text style={styles.sectionHeader}>Masterclass Secrets</Text>
-                    {recipe.tips.map((tip, index) => (
+                    {effectiveRecipe.tips.map((tip, index) => (
                       <View key={index} style={styles.tipRow}>
                         <Lightbulb size={15} color="#D97706" style={styles.tipIcon} />
                         <Text style={styles.tipText}>{tip}</Text>
@@ -636,10 +724,10 @@ const RecipeDetailModalContent: React.FC<{
                 ) : null}
 
                 {/* Substitutions */}
-                {recipe.substitutions && recipe.substitutions.length > 0 ? (
+                {effectiveRecipe.substitutions && effectiveRecipe.substitutions.length > 0 ? (
                   <View style={styles.cardSection}>
                     <Text style={styles.sectionHeader}>Smart Substitutions</Text>
-                    {recipe.substitutions.map((sub, idx) => (
+                    {effectiveRecipe.substitutions.map((sub, idx) => (
                       <View key={idx} style={styles.subRow}>
                         <Text style={styles.subIngredient}>{sub.ingredient}:</Text>
                         <Text style={styles.substitute}>{sub.substitute}</Text>
@@ -647,55 +735,236 @@ const RecipeDetailModalContent: React.FC<{
                     ))}
                   </View>
                 ) : null}
+
+                {/* Rate & Review Section */}
+                <View style={styles.cardSection}>
+                  <Text style={styles.sectionHeader}>Rate & Review</Text>
+                  <View style={styles.ratingOverviewRow}>
+                    <View style={styles.ratingScoreBox}>
+                      <Text style={styles.ratingScoreNumber}>
+                        {liveRating.average !== null ? liveRating.average.toFixed(1) : '--'}
+                      </Text>
+                      <View style={styles.starsRow}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            size={14}
+                            color={star <= Math.round(liveRating.average || 0) ? '#F59E0B' : COLORS.border}
+                            fill={star <= Math.round(liveRating.average || 0) ? '#F59E0B' : 'transparent'}
+                          />
+                        ))}
+                      </View>
+                      <Text style={styles.ratingScoreCount}>
+                        {liveRating.count > 0 ? `${liveRating.count} review${liveRating.count > 1 ? 's' : ''}` : 'No reviews yet'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.userRatingInputBox}>
+                      <Text style={styles.rateRecipePrompt}>Your Rating:</Text>
+                      <View style={styles.interactiveStarsRow}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Pressable
+                            key={star}
+                            onPress={() => setSelectedRating(star)}
+                            hitSlop={6}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                          >
+                            <Star
+                              size={22}
+                              color={star <= selectedRating ? '#F59E0B' : COLORS.border}
+                              fill={star <= selectedRating ? '#F59E0B' : 'transparent'}
+                            />
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+
+                  {selectedRating > 0 && !hasSubmittedReview ? (
+                    <View style={styles.reviewForm}>
+                      <Text style={styles.reviewSublabel}>Difficulty (optional)</Text>
+                      <View style={styles.chipRow}>
+                        {(['Too Easy', 'Just Right', 'Too Hard'] as const).map((diff) => (
+                          <Pressable
+                            key={diff}
+                            style={[
+                              styles.feedbackChip,
+                              selectedDifficulty === diff && styles.feedbackChipActive,
+                            ]}
+                            onPress={() => setSelectedDifficulty(selectedDifficulty === diff ? null : diff)}
+                          >
+                            <Text
+                              style={[
+                                styles.feedbackChipText,
+                                selectedDifficulty === diff && styles.feedbackChipTextActive,
+                              ]}
+                            >
+                              {diff}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+
+                      <Text style={styles.reviewSublabel}>Would you cook this again?</Text>
+                      <View style={styles.chipRow}>
+                        <Pressable
+                          style={[
+                            styles.feedbackChip,
+                            wouldCookAgain === true && styles.feedbackChipActive,
+                          ]}
+                          onPress={() => setWouldCookAgain(wouldCookAgain === true ? null : true)}
+                        >
+                          <Text
+                            style={[
+                              styles.feedbackChipText,
+                              wouldCookAgain === true && styles.feedbackChipTextActive,
+                            ]}
+                          >
+                            Yes, definitely
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={[
+                            styles.feedbackChip,
+                            wouldCookAgain === false && styles.feedbackChipActive,
+                          ]}
+                          onPress={() => setWouldCookAgain(wouldCookAgain === false ? null : false)}
+                        >
+                          <Text
+                            style={[
+                              styles.feedbackChipText,
+                              wouldCookAgain === false && styles.feedbackChipTextActive,
+                            ]}
+                          >
+                            Probably not
+                          </Text>
+                        </Pressable>
+                      </View>
+
+                      <TextInput
+                        style={styles.reviewTextInput}
+                        placeholder="Add cooking notes or feedback (optional)..."
+                        placeholderTextColor={COLORS.textMuted}
+                        value={userComment}
+                        onChangeText={setUserComment}
+                        maxLength={500}
+                        multiline
+                      />
+
+                      <Pressable
+                        style={[
+                          styles.submitReviewBtn,
+                          isSubmittingReview && styles.submitReviewBtnDisabled,
+                        ]}
+                        onPress={handleSubmitReview}
+                        disabled={isSubmittingReview}
+                        accessibilityRole="button"
+                        accessibilityLabel="Submit recipe rating"
+                      >
+                        {isSubmittingReview ? (
+                          <ActivityIndicator size="small" color={COLORS.textInverted} />
+                        ) : (
+                          <Text style={styles.submitReviewBtnText}>Submit Review</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  ) : null}
+
+                  {hasSubmittedReview ? (
+                    <View style={styles.reviewSuccessNotice}>
+                      <Text style={styles.reviewSuccessText}>✓ Thank you for your feedback!</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* Recipe Source Attribution */}
+                <View style={styles.sourceAttributionSection}>
+                  <Text style={styles.sourceAttributionLabel}>Recipe Source</Text>
+                  {effectiveRecipe.sourceUrl ? (
+                    <Pressable
+                      style={styles.sourceLink}
+                      onPress={() => Linking.openURL(effectiveRecipe.sourceUrl!)}
+                      accessibilityRole="link"
+                      accessibilityLabel="View original recipe source"
+                    >
+                      <Text style={styles.sourceLinkText}>
+                        {effectiveRecipe.sourceUrl.includes('themealdb.com') ? 'TheMealDB' : 'Original Source'}
+                      </Text>
+                      <ExternalLink size={13} color={COLORS.primary} />
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.sourceAttributionText}>
+                      {effectiveRecipe.id.startsWith('mealdb_') ? 'TheMealDB' : 'Yummy Tummy Culinary Kitchen'}
+                    </Text>
+                  )}
+                </View>
               </View>
             ) : null}
 
             {/* Tab 2: Ingredients */}
             {activeTab === 'ingredients' ? (
               <View style={styles.tabContent}>
-                <IngredientList
-                  ingredients={recipe.ingredients}
-                  baseServings={baseServings}
-                  currentServings={currentServings}
-                  pantryIngredientNames={pantryIngredientNames}
-                  checkedItems={checkedIngredients}
-                  onToggleCheck={handleToggleCheck}
-                  onIncrementServings={handleIncrementServings}
-                  onDecrementServings={handleDecrementServings}
-                  onAddMissingToShoppingList={handleAddAllMissing}
-                  onCopyIngredients={handleCopyIngredients}
-                  onAddSingleMissing={handleAddSingleMissing}
-                />
+                {isHydrating && (!effectiveRecipe.ingredients || effectiveRecipe.ingredients.length === 0) ? (
+                  <View style={styles.skeletonContainer}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <Text style={styles.skeletonText}>Loading recipe ingredients...</Text>
+                  </View>
+                ) : (
+                  <IngredientList
+                    ingredients={effectiveRecipe.ingredients}
+                    baseServings={baseServings}
+                    currentServings={currentServings}
+                    pantryIngredientNames={pantryIngredientNames}
+                    pantryItems={pantryItems}
+                    checkedItems={checkedIngredients}
+                    onToggleCheck={handleToggleCheck}
+                    onIncrementServings={handleIncrementServings}
+                    onDecrementServings={handleDecrementServings}
+                    onAddMissingToShoppingList={handleAddAllMissing}
+                    onCopyIngredients={handleCopyIngredients}
+                    onAddSingleMissing={handleAddSingleMissing}
+                  />
+                )}
               </View>
             ) : null}
 
             {/* Tab 3: Steps */}
             {activeTab === 'steps' ? (
               <View style={styles.tabContent}>
-                <Text style={styles.stepsIntro}>Follow at your own pace. Your checks stay with this recipe while it is open.</Text>
-                {recipeSteps.map((step) => (
-                  <CookingStep
-                    key={step.stepNumber}
-                    step={step}
-                    isComplete={Boolean(completedSteps[step.stepNumber])}
-                    onToggleComplete={() =>
-                      setCompletedSteps((current) => ({
-                        ...current,
-                        [step.stepNumber]: !current[step.stepNumber],
-                      }))
-                    }
-                    onStartTimer={(minutes) => handleStartTimer(minutes, step.stepNumber)}
-                  />
-                ))}
-                <Pressable
-                  style={[styles.markCookedButton, isMarkedCooked ? styles.markCookedButtonDone : null]}
-                  onPress={handleMarkCooked}
-                  disabled={isMarkedCooked}
-                  accessibilityRole="button"
-                  accessibilityLabel={isMarkedCooked ? 'Recipe marked as cooked' : 'Mark recipe as cooked'}
-                >
-                  <Text style={[styles.markCookedText, isMarkedCooked ? styles.markCookedTextDone : null]}>{isMarkedCooked ? 'Marked as Cooked' : 'Mark as Cooked'}</Text>
-                </Pressable>
+                {isHydrating && (!recipeSteps || recipeSteps.length === 0) ? (
+                  <View style={styles.skeletonContainer}>
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <Text style={styles.skeletonText}>Loading step-by-step instructions...</Text>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.stepsIntro}>Follow at your own pace. Your checks stay with this recipe while it is open.</Text>
+                    {recipeSteps.map((step) => (
+                      <CookingStep
+                        key={step.stepNumber}
+                        step={step}
+                        isComplete={Boolean(completedSteps[step.stepNumber])}
+                        onToggleComplete={() =>
+                          setCompletedSteps((current) => ({
+                            ...current,
+                            [step.stepNumber]: !current[step.stepNumber],
+                          }))
+                        }
+                        onStartTimer={(minutes) => handleStartTimer(minutes, step.stepNumber)}
+                      />
+                    ))}
+                    <Pressable
+                      style={[styles.markCookedButton, isMarkedCooked ? styles.markCookedButtonDone : null]}
+                      onPress={handleMarkCooked}
+                      disabled={isMarkedCooked}
+                      accessibilityRole="button"
+                      accessibilityLabel={isMarkedCooked ? 'Recipe marked as cooked' : 'Mark recipe as cooked'}
+                    >
+                      <Text style={[styles.markCookedText, isMarkedCooked ? styles.markCookedTextDone : null]}>{isMarkedCooked ? 'Marked as Cooked' : 'Mark as Cooked'}</Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             ) : null}
 
@@ -1275,5 +1544,162 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 11,
     fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  ratingOverviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  ratingScoreBox: {
+    alignItems: 'center',
+    paddingRight: SPACING.md,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.borderSubtle,
+    minWidth: 80,
+  },
+  ratingScoreNumber: {
+    fontSize: 28,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textPrimary,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    gap: 2,
+    marginVertical: 4,
+  },
+  ratingScoreCount: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+  userRatingInputBox: {
+    flex: 1,
+  },
+  rateRecipePrompt: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+    color: COLORS.textPrimary,
+    marginBottom: 6,
+  },
+  interactiveStarsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  reviewForm: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderSubtle,
+  },
+  reviewSublabel: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+    marginTop: 8,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+  feedbackChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  feedbackChipActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  feedbackChipText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  feedbackChipTextActive: {
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  reviewTextInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+    fontSize: TYPOGRAPHY.sizes.body,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.surface,
+    minHeight: 64,
+    marginTop: 8,
+    marginBottom: SPACING.md,
+    textAlignVertical: 'top',
+  },
+  submitReviewBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitReviewBtnDisabled: {
+    opacity: 0.6,
+  },
+  submitReviewBtnText: {
+    color: COLORS.textInverted,
+    fontSize: TYPOGRAPHY.sizes.caption,
+    fontWeight: TYPOGRAPHY.weights.bold,
+  },
+  reviewSuccessNotice: {
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.successLight,
+    borderRadius: RADIUS.sm,
+  },
+  reviewSuccessText: {
+    color: COLORS.success,
+    fontSize: TYPOGRAPHY.sizes.caption,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  sourceAttributionSection: {
+    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+    marginBottom: SPACING.md,
+  },
+  sourceAttributionLabel: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontWeight: TYPOGRAPHY.weights.medium,
+    marginBottom: 4,
+  },
+  sourceAttributionText: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  sourceLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sourceLinkText: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  skeletonContainer: {
+    paddingVertical: SPACING.xxl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
+  skeletonText: {
+    fontSize: TYPOGRAPHY.sizes.caption,
+    color: COLORS.textMuted,
   },
 });

@@ -12,7 +12,7 @@ interface RecipeCardProps {
   onPress?: () => void;
 }
 
-export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
+export const RecipeCard: React.FC<RecipeCardProps> = React.memo(({ recipe, onPress }) => {
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
 
@@ -125,7 +125,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
       </View>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

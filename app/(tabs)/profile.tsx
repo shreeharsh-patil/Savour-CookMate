@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,10 +38,16 @@ export default function ProfileScreen() {
   );
   const currentUser = useAppStore((state) => state.currentUser);
   const cookingHistory = useAppStore((state) => state.cookingHistory);
+  const pantryItems = useAppStore((state) => state.pantryItems);
+  const loadProfileSummary = useAppStore((state) => state.loadProfileSummary);
   const setAuthModalOpen = useAppStore((state) => state.setAuthModalOpen);
   const setOnboardingOpen = useAppStore((state) => state.setOnboardingOpen);
   const signOut = useAppStore((state) => state.signOut);
   const setSelectedRecipe = useAppStore((state) => state.setSelectedRecipe);
+
+  useEffect(() => {
+    loadProfileSummary();
+  }, [loadProfileSummary]);
 
   const [diet, setDiet] = useState<DietType>(userPreferences.diet as DietType);
   const [skillLevel, setSkillLevel] = useState<CookingLevelType>(
@@ -75,16 +81,9 @@ export default function ProfileScreen() {
   };
 
   const handleToggleCuisine = (cuisine: string) => {
-    let updated: string[];
-    if (favoriteCuisines.includes(cuisine)) {
-      if (favoriteCuisines.length > 1) {
-        updated = favoriteCuisines.filter((c) => c !== cuisine);
-      } else {
-        return;
-      }
-    } else {
-      updated = [...favoriteCuisines, cuisine];
-    }
+    const updated = favoriteCuisines.includes(cuisine)
+      ? favoriteCuisines.filter((c) => c !== cuisine)
+      : [...favoriteCuisines, cuisine];
     setFavoriteCuisines(updated);
     updateUserPreferences({ favoriteCuisines: updated });
   };
@@ -92,11 +91,8 @@ export default function ProfileScreen() {
   const handleToggleLanguage = (lang: VideoLanguageType) => {
     let updated: VideoLanguageType[];
     if (videoLanguages.includes(lang)) {
-      if (videoLanguages.length > 1) {
-        updated = videoLanguages.filter((l) => l !== lang);
-      } else {
-        return;
-      }
+      if (videoLanguages.length === 1) return;
+      updated = videoLanguages.filter((l) => l !== lang);
     } else {
       updated = [...videoLanguages, lang];
     }
@@ -114,7 +110,7 @@ export default function ProfileScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.pretitle}>Preferences & Identity</Text>
-          <Text style={styles.title}>Chef Profile</Text>
+          <Text style={styles.title}>Profile</Text>
         </View>
 
         {/* User Card */}
@@ -134,7 +130,7 @@ export default function ProfileScreen() {
             <View style={styles.userInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.userName} numberOfLines={1}>
-                  {currentUser?.name || userProfile?.name || 'Home Cook'}
+                  {currentUser?.name || userProfile?.name || 'Guest'}
                 </Text>
                 {isGuest ? (
                   <View style={styles.guestBadge}>
@@ -149,7 +145,7 @@ export default function ProfileScreen() {
               </View>
 
               <Text style={styles.userEmail} numberOfLines={1}>
-                {currentUser?.email || userProfile?.email || 'Guest Chef'}
+                {currentUser?.email || userProfile?.email || (isGuest ? 'Guest Account' : 'Account')}
               </Text>
 
               {/* User-Oriented Sync Status */}
@@ -161,6 +157,35 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
+
+          {/* Real Statistics for Signed-in Users */}
+          {!isGuest ? (
+            <View style={styles.statsRow}>
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{userProfile?.recipesCooked ?? cookingHistory.length}</Text>
+                <Text style={styles.statLabel}>Cooked</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{userProfile?.savedRecipeCount ?? 0}</Text>
+                <Text style={styles.statLabel}>Saved</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{userProfile?.pantryItemCount ?? pantryItems.length}</Text>
+                <Text style={styles.statLabel}>In Kitchen</Text>
+              </View>
+              {userProfile?.memberSince ? (
+                <>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statCell}>
+                    <Text style={styles.statVal}>{userProfile.memberSince}</Text>
+                    <Text style={styles.statLabel}>Member Since</Text>
+                  </View>
+                </>
+              ) : null}
+            </View>
+          ) : null}
 
           {/* Auth Action */}
           <View style={styles.userActions}>
@@ -370,6 +395,36 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.success,
     fontWeight: TYPOGRAPHY.weights.medium,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderSubtle,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    marginTop: 4,
+  },
+  statCell: {
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  statVal: {
+    fontSize: 16,
+    fontWeight: TYPOGRAPHY.weights.bold,
+    color: COLORS.textPrimary,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: COLORS.borderSubtle,
   },
   userActions: {
     borderTopWidth: 1,

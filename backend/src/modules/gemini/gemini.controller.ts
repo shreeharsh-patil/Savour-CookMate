@@ -11,6 +11,9 @@ import { GeminiService } from "./gemini.service";
 import { FirebaseAuthGuard, AuthenticatedUser } from "../../common/guards/firebase-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 
+import { z } from "zod";
+import { validateRequest } from "../../common/validation/validate-request";
+
 // In-memory rate limiting for expensive AI endpoints: max 10 requests per 5 minutes per user
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 10;
@@ -35,6 +38,22 @@ function checkRateLimit(userId: string) {
   entry.count += 1;
 }
 
+const CookWithWhatIHaveSchema = z.object({
+  ingredients: z.array(z.string().min(1).max(60)).min(1, "At least one ingredient required").max(25, "Maximum 25 ingredients allowed"),
+  preferences: z.record(z.string(), z.any()).optional(),
+});
+
+const SubstitutionsSchema = z.object({
+  ingredient: z.string().min(1, "Ingredient is required").max(60, "Ingredient cannot exceed 60 characters"),
+  dishContext: z.string().max(100).optional(),
+});
+
+const AdviceSchema = z.object({
+  question: z.string().min(1, "Question is required").max(300, "Question cannot exceed 300 characters"),
+  recipeName: z.string().max(100).optional().default(""),
+  stepInstruction: z.string().max(500).optional(),
+});
+
 @Controller("api/v1/ai")
 @UseGuards(FirebaseAuthGuard)
 export class GeminiController {
@@ -43,68 +62,33 @@ export class GeminiController {
   @Post("cook-with-what-i-have")
   async cookWithWhatIHave(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { ingredients: string[]; preferences?: Record<string, any> }
+    @Body() rawBody: unknown
   ) {
     checkRateLimit(user.userId);
-
-    const ingredients = body.ingredients || [];
-    if (!Array.isArray(ingredients)) {
-      throw new BadRequestException("Ingredients must be an array of strings.");
-    }
-
-    if (ingredients.length > 25) {
-      throw new BadRequestException("Maximum of 25 ingredients allowed per request.");
-    }
-
-    const cleaned = ingredients
-      .map((i) => (typeof i === "string" ? i.trim() : ""))
-      .filter((i) => i.length > 0);
-
-    for (const ing of cleaned) {
-      if (ing.length > 60) {
-        throw new BadRequestException(`Ingredient '${ing.slice(0, 20)}...' exceeds maximum length of 60 characters.`);
-      }
-    }
-
-    return this.geminiService.cookWithWhatIHave(cleaned, body.preferences || {});
+    const body = validateRequest(CookWithWhatIHaveSchema, rawBody);
+    return this.geminiService.cookWithWhatIHave(body.ingredients, body.preferences || {});
   }
 
   @Post("substitutions")
   async getSubstitutions(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { ingredient: string; dishContext?: string }
+    @Body() rawBody: unknown
   ) {
     checkRateLimit(user.userId);
-
-    if (!body.ingredient || typeof body.ingredient !== "string" || body.ingredient.trim().length === 0) {
-      throw new BadRequestException("Ingredient name is required.");
-    }
-
-    if (body.ingredient.length > 60) {
-      throw new BadRequestException("Ingredient name cannot exceed 60 characters.");
-    }
-
-    return this.geminiService.getSubstitutions(body.ingredient.trim(), body.dishContext?.slice(0, 100));
+    const body = validateRequest(SubstitutionsSchema, rawBody);
+    return this.geminiService.getSubstitutions(body.ingredient.trim(), body.dishContext);
   }
 
   @Post("advice")
   async getAdvice(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { question: string; recipeName: string; stepInstruction?: string }
+    @Body() rawBody: unknown
   ) {
     checkRateLimit(user.userId);
-
-    if (!body.question || typeof body.question !== "string" || body.question.trim().length === 0) {
-      throw new BadRequestException("Question is required.");
-    }
-
-    if (body.question.length > 300) {
-      throw new BadRequestException("Question cannot exceed 300 characters.");
-    }
-
+    const body = validateRequest(AdviceSchema, rawBody);
     const advice = await this.geminiService.getCookingAdvice(body.question.trim(), {
-      name: body.recipeName?.slice(0, 100),
-      stepInstruction: body.stepInstruction?.slice(0, 500),
+      name: body.recipeName,
+      stepInstruction: body.stepInstruction,
     });
     return { advice };
   }

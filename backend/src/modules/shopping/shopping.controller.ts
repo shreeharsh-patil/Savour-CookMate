@@ -12,6 +12,21 @@ import { ShoppingService } from "./shopping.service";
 import { FirebaseAuthGuard, AuthenticatedUser } from "../../common/guards/firebase-auth.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 
+import { z } from "zod";
+import { validateRequest } from "../../common/validation/validate-request";
+
+const AddShoppingItemSchema = z.object({
+  name: z.string().min(1, "Item name cannot be empty").max(100, "Item name cannot exceed 100 characters"),
+  quantity: z.string().max(50).optional(),
+  unit: z.string().max(50).optional(),
+  category: z.string().max(50).optional(),
+  recipeId: z.string().max(100).optional(),
+});
+
+const AddMissingSchema = z.object({
+  recipeId: z.string().min(1, "Recipe ID cannot be empty").max(100),
+});
+
 @Controller("api/v1/shopping-list")
 @UseGuards(FirebaseAuthGuard)
 export class ShoppingController {
@@ -25,8 +40,9 @@ export class ShoppingController {
   @Post()
   async addItem(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { name: string; quantity?: string; unit?: string; category?: string; recipeId?: string }
+    @Body() rawBody: unknown
   ) {
+    const body = validateRequest(AddShoppingItemSchema, rawBody);
     return this.shoppingService.addItem(
       user.userId,
       body.name,
@@ -61,8 +77,9 @@ export class ShoppingController {
   @Post("add-missing")
   async addMissingFromRecipe(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { recipeId: string }
+    @Body() rawBody: unknown
   ) {
+    const body = validateRequest(AddMissingSchema, rawBody);
     return this.shoppingService.addMissingFromRecipe(user.userId, body.recipeId);
   }
 

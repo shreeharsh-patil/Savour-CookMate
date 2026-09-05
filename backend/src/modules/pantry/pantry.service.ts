@@ -74,10 +74,10 @@ export class PantryService {
         userId,
         name: dto.name.trim(),
         normalizedName,
-        quantity: dto.quantity || "1",
-        unit: dto.unit || "unit",
+        quantity: dto.quantity ? dto.quantity.trim() : undefined,
+        unit: dto.unit ? dto.unit.trim() : undefined,
         expiryDate: expiry,
-        category: dto.category || "Produce",
+        category: dto.category ? dto.category.trim() : "Produce",
         lowStock: Boolean(dto.lowStock),
       },
       { upsert: true, new: true }
@@ -113,9 +113,11 @@ export class PantryService {
   }
 
   async getSmartSections(userId: string) {
+    const now = new Date();
     const pantryItems = await this.pantryModel.find({ userId }).lean();
-    const pantryItemNames = pantryItems.map((p) => p.name || p.normalizedName);
-    const normalizedPantryNames = pantryItems
+    const validPantryItems = pantryItems.filter((i) => !i.expiryDate || new Date(i.expiryDate) >= now);
+    const pantryItemNames = validPantryItems.map((p) => p.name || p.normalizedName);
+    const normalizedPantryNames = validPantryItems
       .map((item) => item.normalizedName || this.ingredientsService.normalizeIngredientName(item.name))
       .filter(Boolean);
 
@@ -168,7 +170,6 @@ export class PantryService {
     const useTheseSoon: any[] = [];
     const allMatches: any[] = [];
 
-    const now = new Date();
     const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
     const expiringItems = pantryItems.filter(
       (i) => i.expiryDate && new Date(i.expiryDate) >= now && new Date(i.expiryDate) <= threeDaysFromNow
@@ -260,7 +261,17 @@ export class PantryService {
     if (specificIngredients && specificIngredients.length > 0) {
       ingredientNames = specificIngredients;
     } else {
-      const items = await this.pantryModel.find({ userId }).lean();
+      const now = new Date();
+      const items = await this.pantryModel
+        .find({
+          userId,
+          $or: [
+            { expiryDate: { $exists: false } },
+            { expiryDate: null },
+            { expiryDate: { $gte: now } },
+          ],
+        })
+        .lean();
       ingredientNames = items.map((i) => i.name || i.normalizedName);
     }
 

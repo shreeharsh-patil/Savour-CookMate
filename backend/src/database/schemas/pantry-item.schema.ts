@@ -17,11 +17,11 @@ export class PantryItem {
   @Prop({ type: String, required: true, index: true })
   normalizedName: string;
 
-  @Prop({ type: String, default: "1" })
-  quantity: string;
+  @Prop({ type: String, required: false })
+  quantity?: string;
 
-  @Prop({ type: String, default: "unit" })
-  unit: string;
+  @Prop({ type: String, required: false })
+  unit?: string;
 
   @Prop({ type: Date })
   expiryDate?: Date;

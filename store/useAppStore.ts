@@ -34,6 +34,7 @@ interface AppState {
   userPreferences: UserPreferences;
   isAuthLoading: boolean;
   loadAuthUser: () => Promise<void>;
+  loadProfileSummary: () => Promise<void>;
   signInWithGoogle: () => Promise<{ user?: AuthUser; error?: string }>;
   signInWithEmail: (email: string, pass: string) => Promise<{ user?: AuthUser; error?: string }>;
   signUpWithEmail: (email: string, pass: string, name: string) => Promise<{ user?: AuthUser; error?: string }>;
@@ -192,22 +193,12 @@ export const useAppStore = create<AppState>((set, get) => ({
             const authUser: AuthUser = {
               id: res.user.firebaseUid || res.user.id,
               email: res.user.email || "",
-              name: res.user.displayName || "Home Cook",
+              name: res.user.displayName || "User",
               isGuest: res.user.isGuest || false,
               avatar: res.user.avatar,
             };
-            set({
-              currentUser: authUser,
-              userProfile: {
-                name: authUser.name,
-                email: authUser.email,
-                avatar: authUser.avatar,
-                memberSince: new Date().getFullYear().toString(),
-                totalRecipesCooked: 0,
-                savedRecipeCount: 0,
-                level: "Kitchen Explorer",
-              },
-            });
+            set({ currentUser: authUser });
+            await get().loadProfileSummary();
           } else {
             await clearStoredToken();
             await get().signInAsGuest();
@@ -323,21 +314,74 @@ export const useAppStore = create<AppState>((set, get) => ({
         res?.user?.firebaseUid || res?.user?.id || res?.token || "guest_anonymous";
       const guest: AuthUser = {
         id: guestId,
-        name: "Guest Chef",
+        name: "Guest",
         email: "",
         isGuest: true,
       };
-      set({ currentUser: guest, isAuthModalOpen: false });
+      set({
+        currentUser: guest,
+        userProfile: {
+          name: "Guest",
+          email: "",
+          recipesCooked: 0,
+          recentCookCount: 0,
+          savedRecipeCount: 0,
+          pantryItemCount: 0,
+        },
+        isAuthModalOpen: false,
+      });
       return guest;
     } catch {
       const fallbackGuest: AuthUser = {
         id: "guest_anonymous",
-        name: "Guest Chef",
+        name: "Guest",
         email: "",
         isGuest: true,
       };
-      set({ currentUser: fallbackGuest, isAuthModalOpen: false });
+      set({
+        currentUser: fallbackGuest,
+        userProfile: {
+          name: "Guest",
+          email: "",
+          recipesCooked: 0,
+          recentCookCount: 0,
+          savedRecipeCount: 0,
+          pantryItemCount: 0,
+        },
+        isAuthModalOpen: false,
+      });
       return fallbackGuest;
+    }
+  },
+
+  loadProfileSummary: async () => {
+    try {
+      const summary = await api.users.getProfileSummary();
+      if (summary?.user) {
+        const displayName = summary.user.displayName || (summary.user.isGuest ? "Guest" : "User");
+        set((state) => ({
+          currentUser: {
+            ...(state.currentUser || { id: summary.user.userId }),
+            id: summary.user.userId,
+            name: displayName,
+            email: summary.user.email || "",
+            avatar: summary.user.avatar,
+            isGuest: Boolean(summary.user.isGuest),
+          },
+          userProfile: {
+            name: displayName,
+            email: summary.user.email || "",
+            avatar: summary.user.avatar,
+            memberSince: summary.stats?.memberSince,
+            recipesCooked: summary.stats?.recipesCooked ?? 0,
+            recentCookCount: summary.stats?.recentCookCount ?? 0,
+            savedRecipeCount: summary.stats?.savedRecipeCount ?? 0,
+            pantryItemCount: summary.stats?.pantryItemCount ?? 0,
+          },
+        }));
+      }
+    } catch (err) {
+      console.warn("Could not load profile summary:", err);
     }
   },
 
@@ -380,8 +424,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addCookingHistory: async (recipe: Recipe, rating?: number, notes?: string) => {
+    const tempId = Date.now().toString();
     const item: CookingHistoryItem = {
-      id: Date.now().toString(),
+      id: tempId,
       recipeId: recipe.id,
       recipeTitle: recipe.title || recipe.name,
       cookedAt: new Date().toISOString(),
@@ -390,16 +435,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
     set((state) => ({ cookingHistory: [item, ...state.cookingHistory] }));
     try {
-      await api.history.recordSession({
-        recipeId: recipe.id,
-        recipeName: recipe.title || recipe.name,
-        recipeImage: recipe.imageUrl || "",
-        durationMinutes: recipe.cookTime || 30,
-        rating,
-        notes,
-      });
+      const res = await api.recipes.recordCook(
+        recipe.id,
+        recipe.cookTime || undefined,
+        notes
+      );
+      if (res && (res as any).historyItem) {
+        const hist = (res as any).historyItem;
+        set((state) => ({
+          cookingHistory: state.cookingHistory.map((h) =>
+            h.id === tempId
+              ? {
+                  id: hist.id || h.id,
+                  recipeId: hist.recipeId || h.recipeId,
+                  recipeTitle: hist.recipeTitle || h.recipeTitle,
+                  cookedAt: hist.cookedAt || h.cookedAt,
+                  notes: hist.notes || h.notes,
+                  rating: h.rating,
+                }
+              : h
+          ),
+        }));
+      }
     } catch {
-      // offline
+      // offline fallback maintains optimistic update
     }
     return item;
   },

@@ -13,7 +13,7 @@ interface CompactRecipeCardProps {
   onPress?: () => void;
 }
 
-export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = ({
+export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = React.memo(({
   recipe,
   width = 170,
   onPress,
@@ -84,7 +84,7 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = ({
       </View>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

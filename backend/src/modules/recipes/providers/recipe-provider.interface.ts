@@ -1,8 +1,8 @@
 export interface NormalizedIngredientItem {
   name: string;
   normalizedName: string;
-  quantity: string;
-  unit: string;
+  quantity?: string;
+  unit?: string;
   optional?: boolean;
   category?: string;
 }

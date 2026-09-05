@@ -25,7 +25,7 @@ export class AuthController {
     const guestId = `guest_${crypto.randomBytes(8).toString("hex")}`;
     const guestUser: AuthenticatedUser = {
       userId: guestId,
-      displayName: "Guest Chef",
+      displayName: "Guest",
       isGuest: true,
     };
     const synced = await this.authService.syncUser(guestUser);

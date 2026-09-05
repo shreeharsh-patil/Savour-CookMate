@@ -27,7 +27,7 @@ import {
   HeroSkeleton,
 } from '../../components/LoadingSkeleton';
 import { ErrorState } from '../../components/ErrorState';
-import { CUISINE_SECTIONS, DISCOVERY_CHANNELS } from '../../constants/categories';
+import { CUISINE_SECTIONS } from '../../constants/categories';
 import { COLORS, RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../constants/theme';
 
 export default function HomeScreen() {
@@ -79,10 +79,6 @@ export default function HomeScreen() {
     loadHomeRecipes('Fresh picks for you', false);
   };
 
-  const handleChannelSelect = (channel: string) => {
-    setActiveHomeCategory(channel);
-  };
-
   const featuredRecipe = homeRecipes[0];
   const remainingRecipes = homeRecipes.slice(1);
   const quickMeals = homeRecipes.filter((r) => {
@@ -120,40 +116,6 @@ export default function HomeScreen() {
           onSelectCategory={handleMindCategorySelect}
           onResetCategory={activeMindCategory ? handleResetMindCategory : undefined}
         />
-
-        {/* 4. Recommendation Channels Horizontal Pills */}
-        <View style={styles.channelsSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.channelsContent}
-          >
-            {DISCOVERY_CHANNELS.map((channel) => {
-              const isSelected =
-                !activeMindCategory && activeHomeCategory === channel;
-
-              return (
-                <Pressable
-                  key={channel}
-                  style={[
-                    styles.channelPill,
-                    isSelected && styles.channelPillSelected,
-                  ]}
-                  onPress={() => handleChannelSelect(channel)}
-                >
-                  <Text
-                    style={[
-                      styles.channelPillText,
-                      isSelected && styles.channelPillTextSelected,
-                    ]}
-                  >
-                    {channel}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
 
         {/* Error Notification */}
         {homeError ? (
@@ -350,34 +312,6 @@ const styles = StyleSheet.create({
   },
   heroContainer: {
     marginTop: -SPACING.sm,
-  },
-  channelsSection: {
-    paddingVertical: 2,
-  },
-  channelsContent: {
-    paddingHorizontal: SPACING.md,
-    gap: 8,
-  },
-  channelPill: {
-    backgroundColor: COLORS.card,
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  channelPillSelected: {
-    backgroundColor: COLORS.primaryLight,
-    borderColor: COLORS.primary,
-  },
-  channelPillText: {
-    fontSize: TYPOGRAPHY.sizes.caption,
-    fontWeight: TYPOGRAPHY.weights.semibold,
-    color: COLORS.textSecondary,
-  },
-  channelPillTextSelected: {
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.weights.bold,
   },
   pantryBanner: {
     backgroundColor: COLORS.card,

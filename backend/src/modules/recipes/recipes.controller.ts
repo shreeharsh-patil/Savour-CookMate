@@ -13,6 +13,38 @@ import { FirebaseAuthGuard, Public, AuthenticatedUser } from "../../common/guard
 import { RolesGuard, Roles } from "../../common/guards/roles.guard";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 
+import { z } from "zod";
+import { validateRequest } from "../../common/validation/validate-request";
+
+const RateRecipeSchema = z.object({
+  rating: z.number().min(1, "Rating must be between 1 and 5").max(5, "Rating must be between 1 and 5"),
+  comment: z.string().max(1000, "Comment cannot exceed 1000 characters").optional(),
+  difficultyFeedback: z.enum(["Too Easy", "Just Right", "Too Hard"]).optional(),
+  wouldCookAgain: z.boolean().optional(),
+});
+
+const RecordCookSchema = z.object({
+  durationMinutes: z.number().int().positive().max(720).optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+const GetRecipesQuerySchema = z.object({
+  cuisine: z.string().max(100).optional(),
+  mealType: z.string().max(100).optional(),
+  diet: z.string().max(100).optional(),
+  difficulty: z.string().max(50).optional(),
+  maxTime: z.coerce.number().positive().max(720).optional(),
+  search: z.string().max(100).optional(),
+  sort: z.enum(["popular", "rating", "time", "newest"]).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const SearchRecipesQuerySchema = z.object({
+  q: z.string().min(1, "Search query cannot be empty").max(100, "Search query cannot exceed 100 characters"),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
 @Controller("api/v1/recipes")
 @UseGuards(FirebaseAuthGuard)
 export class RecipesController {
@@ -21,33 +53,27 @@ export class RecipesController {
   @Public()
   @Get()
   async getRecipes(
-    @Query("cuisine") cuisine?: string,
-    @Query("mealType") mealType?: string,
-    @Query("diet") diet?: string,
-    @Query("difficulty") difficulty?: string,
-    @Query("maxTime") maxTime?: number,
-    @Query("search") search?: string,
-    @Query("sort") sort?: "popular" | "rating" | "time" | "newest",
-    @Query("page") page?: number,
-    @Query("limit") limit?: number
+    @Query() rawQuery: any
   ) {
+    const validated = validateRequest(GetRecipesQuerySchema, rawQuery);
     return this.recipesService.findAll({
-      cuisine,
-      mealType,
-      diet,
-      difficulty,
-      maxTime: maxTime ? Number(maxTime) : undefined,
-      search,
-      sort,
-      page: page ? Number(page) : 1,
-      limit: limit ? Number(limit) : 20,
+      cuisine: validated.cuisine,
+      mealType: validated.mealType,
+      diet: validated.diet,
+      difficulty: validated.difficulty,
+      maxTime: validated.maxTime,
+      search: validated.search,
+      sort: validated.sort,
+      page: validated.page || 1,
+      limit: validated.limit || 20,
     });
   }
 
   @Public()
   @Get("search")
-  async searchRecipes(@Query("q") query: string, @Query("limit") limit?: number) {
-    const recipes = await this.recipesService.searchRecipes(query, limit ? Number(limit) : 20);
+  async searchRecipes(@Query() rawQuery: any) {
+    const validated = validateRequest(SearchRecipesQuerySchema, rawQuery);
+    const recipes = await this.recipesService.searchRecipes(validated.q, validated.limit || 20);
     return { recipes, total: recipes.length };
   }
 
@@ -60,35 +86,32 @@ export class RecipesController {
   @Public()
   @Get("category/:category")
   async getByCategory(@Param("category") category: string, @Query("limit") limit?: number) {
-    const recipes = await this.recipesService.getByCategory(category, limit ? Number(limit) : 20);
+    const safeLimit = Math.min(50, Math.max(1, limit ? Number(limit) : 20));
+    const recipes = await this.recipesService.getByCategory(category.slice(0, 100), safeLimit);
     return { category, recipes };
   }
 
   @Public()
   @Get("cuisine/:area")
   async getByCuisine(@Param("area") area: string, @Query("limit") limit?: number) {
-    const recipes = await this.recipesService.getByCuisine(area, limit ? Number(limit) : 20);
+    const safeLimit = Math.min(50, Math.max(1, limit ? Number(limit) : 20));
+    const recipes = await this.recipesService.getByCuisine(area.slice(0, 100), safeLimit);
     return { cuisine: area, recipes };
   }
 
   @Public()
   @Get(":id")
   async getRecipeDetail(@Param("id") id: string) {
-    return this.recipesService.findById(id);
+    return this.recipesService.findById(id.slice(0, 150));
   }
 
   @Post(":id/rate")
   async rateRecipe(
     @Param("id") id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body()
-    body: {
-      rating: number;
-      comment?: string;
-      difficultyFeedback?: string;
-      wouldCookAgain?: boolean;
-    }
+    @Body() rawBody: unknown
   ) {
+    const body = validateRequest(RateRecipeSchema, rawBody);
     return this.recipesService.rateRecipe(
       id,
       user.userId,
@@ -104,8 +127,9 @@ export class RecipesController {
   async recordCook(
     @Param("id") id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { durationMinutes?: number; notes?: string }
+    @Body() rawBody: unknown
   ) {
+    const body = validateRequest(RecordCookSchema, rawBody);
     return this.recipesService.recordCook(
       id,
       user.userId,

@@ -17,17 +17,27 @@ export type PantryCategory =
   | 'Spices & Oils'
   | 'Other';
 
+export type IngredientAvailability = 'ENOUGH' | 'PARTIAL' | 'MISSING' | 'UNKNOWN_QUANTITY';
+
+export interface IngredientMatchStatus {
+  status: IngredientAvailability;
+  pantryQuantity?: string;
+  requiredQuantity?: string;
+  unit?: string;
+}
+
 export interface Ingredient {
   name: string;
-  normalizedName: string;
-  quantity: string;
-  unit: string;
-  optional: boolean;
-  category: string;
+  normalizedName?: string;
+  quantity?: string;
+  unit?: string;
+  optional?: boolean;
+  category?: string;
   // UI compatibility aliases
   item?: string;
   amount?: string;
   inPantry?: boolean;
+  availability?: IngredientAvailability;
 }
 
 export interface RecipeSubstitution {
@@ -203,8 +213,10 @@ export interface UserProfile {
   createdAt?: string;
   memberSince?: string;
   totalRecipesCooked?: number;
+  recipesCooked?: number;
+  recentCookCount?: number;
   savedRecipeCount?: number;
-  level?: string;
+  pantryItemCount?: number;
   isGuest?: boolean;
 }
 

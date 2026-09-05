@@ -28,6 +28,14 @@ const ALIAS_DICTIONARY: Record<string, string[]> = {
   cream: ["heavy cream", "fresh cream", "malai", "whipping cream"],
   "coconut milk": ["nariyal doodh", "coconut cream"],
   pasta: ["spaghetti", "penne", "fettuccine", "rigatoni", "macaroni"],
+  chilli: ["chili", "green chili", "green chilli", "red chili", "red chilli", "hari mirch"],
+  egg: ["eggs", "anda", "egg white", "egg yolk"],
+  lemon: ["lime", "nimbu", "lemon juice", "lime juice"],
+  "gram flour": ["besan", "chickpea flour", "garbanzo flour"],
+  lentils: ["dal", "daal", "dhal", "lentil", "toor dal", "moong dal", "masoor dal", "urad dal", "chana dal"],
+  mint: ["pudina", "mint leaves", "fresh mint"],
+  fenugreek: ["methi", "kasuri methi", "fenugreek leaves"],
+  "ginger garlic paste": ["ginger-garlic paste", "adrak lehsun paste"],
 };
 
 // Inverted lookup map for O(1) canonical resolution

@@ -37,7 +37,11 @@ export class MealDbRecipeProvider implements RecipeProvider {
     }
   }
 
-  public normalizeMeal(meal: any): NormalizedRecipe {
+  public normalizeMeal(meal: any): NormalizedRecipe | null {
+    if (!meal || !meal.idMeal || !meal.strMeal || !meal.strMeal.trim()) {
+      return null;
+    }
+
     const ingredients: NormalizedIngredientItem[] = [];
 
     for (let i = 1; i <= 20; i++) {
@@ -46,18 +50,21 @@ export class MealDbRecipeProvider implements RecipeProvider {
 
       if (rawName && typeof rawName === "string" && rawName.trim()) {
         const cleanName = rawName.trim();
-        const measure = rawMeasure && typeof rawMeasure === "string" ? rawMeasure.trim() : "1 unit";
+        const rawTrimmed = rawMeasure && typeof rawMeasure === "string" ? rawMeasure.trim() : "";
+        let quantity: string | undefined = undefined;
+        let unit: string | undefined = undefined;
 
-        // Extract unit vs quantity from measure
-        const measureMatch = measure.match(/^([\d\/\.\s\-\u00BC-\u00BE\u2150-\u215E]+)?\s*(.*)$/);
-        const quantity = measureMatch && measureMatch[1] ? measureMatch[1].trim() : "1";
-        const unit = measureMatch && measureMatch[2] ? measureMatch[2].trim() : "unit";
+        if (rawTrimmed) {
+          const measureMatch = rawTrimmed.match(/^([\d\/\.\s\-\u00BC-\u00BE\u2150-\u215E]+)?\s*(.*)$/);
+          quantity = measureMatch && measureMatch[1] && measureMatch[1].trim() ? measureMatch[1].trim() : undefined;
+          unit = measureMatch && measureMatch[2] && measureMatch[2].trim() ? measureMatch[2].trim() : undefined;
+        }
 
         ingredients.push({
           name: cleanName,
           normalizedName: cleanName.toLowerCase().trim(),
           quantity,
-          unit: unit || "unit",
+          unit,
           optional: false,
           category: "Pantry",
         });
@@ -102,8 +109,8 @@ export class MealDbRecipeProvider implements RecipeProvider {
       dietaryTags.push("Non-Vegetarian");
     }
 
-    const mealName = meal.strMeal || "Unknown Recipe";
-    const slug = `${mealName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${meal.idMeal || "unknown"}`;
+    const mealName = meal.strMeal.trim();
+    const slug = `${mealName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${meal.idMeal}`;
 
     const descParts: string[] = [];
     if (cuisine) descParts.push(cuisine);
@@ -149,7 +156,7 @@ export class MealDbRecipeProvider implements RecipeProvider {
     if (!query || !query.trim()) return [];
     const data = await this.fetchWithTimeout<{ meals: any[] }>(`/search.php?s=${encodeURIComponent(query.trim())}`);
     if (!data || !Array.isArray(data.meals)) return [];
-    return data.meals.map((m) => this.normalizeMeal(m));
+    return data.meals.map((m) => this.normalizeMeal(m)).filter((r): r is NormalizedRecipe => r !== null);
   }
 
   async getRecipe(id: string): Promise<NormalizedRecipe | null> {
@@ -266,7 +273,7 @@ export class MealDbRecipeProvider implements RecipeProvider {
         thumbnailUrl: m.strMealThumb ? `${m.strMealThumb}/preview` : "",
         category: undefined,
         cuisine: undefined,
-        ingredients: [{ name: ingredient, normalizedName: ingredient.toLowerCase(), quantity: "1", unit: "portion" }],
+        ingredients: [{ name: ingredient, normalizedName: ingredient.toLowerCase(), quantity: undefined, unit: undefined }],
         instructions: [],
         steps: [],
         totalTime: undefined,

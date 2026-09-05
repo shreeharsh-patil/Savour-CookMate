@@ -144,6 +144,10 @@ export async function getPersistentGuestId(): Promise<string> {
   return guestIdReadInFlight;
 }
 
+import { ApiError, ApiErrorKind, classifyHttpStatus } from './apiError';
+export { ApiError, ApiErrorKind, classifyHttpStatus };
+
+
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
   _isRetry?: boolean;
@@ -237,9 +241,6 @@ export async function apiClient<T>(
       isGenuineNetworkError(primaryErr);
 
     if (canAttemptFallback) {
-      // If primary was LAN IP, fallback to 10.0.2.2.
-      // If primary was 10.0.2.2, check if hostIp exists.
-      // NEVER use localhost on Android!
       const hostUri = Constants.expoConfig?.hostUri;
       const hostIp = hostUri ? hostUri.split(":")[0] : null;
 
@@ -259,15 +260,23 @@ export async function apiClient<T>(
             timeoutMs,
           });
         } catch {
-          // Fallback failed, throw original error
-          throw primaryErr;
+          if (primaryErr.name === "AbortError") {
+            throw new ApiError("Request timed out. Please check your network connection.", "TIMEOUT", 408);
+          }
+          throw new ApiError(primaryErr.message || "Network connection error.", "NETWORK");
         }
       } else {
-        throw primaryErr;
+        if (primaryErr.name === "AbortError") {
+          throw new ApiError("Request timed out. Please check your network connection.", "TIMEOUT", 408);
+        }
+        throw new ApiError(primaryErr.message || "Network connection error.", "NETWORK");
       }
     } else {
       if (primaryErr.name === "AbortError") {
-        throw new Error("Request timed out. Please check your network connection.");
+        throw new ApiError("Request timed out. Please check your network connection.", "TIMEOUT", 408);
+      }
+      if (isGenuineNetworkError(primaryErr)) {
+        throw new ApiError("Network connection error. Please verify your internet connection.", "NETWORK");
       }
       throw primaryErr;
     }
@@ -290,16 +299,17 @@ export async function apiClient<T>(
       }
     }
 
+    const kind = classifyHttpStatus(response.status);
+
     let errorMessage = `HTTP Error ${response.status}`;
+    let errorData: any = null;
     try {
-      const errorData = await response.json();
+      errorData = await response.json();
       errorMessage = errorData.message || errorMessage;
     } catch {
       // use default HTTP error
     }
-    const httpErr: any = new Error(errorMessage);
-    httpErr.status = response.status;
-    throw httpErr;
+    throw new ApiError(errorMessage, kind, response.status, errorData);
   }
 
   return (await response.json()) as T;

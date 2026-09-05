@@ -25,6 +25,8 @@ export class CookingHistory {
 
   @Prop({ type: String, default: "" })
   notes: string;
+
+  cookedAt?: Date;
 }
 
 export const CookingHistorySchema = SchemaFactory.createForClass(CookingHistory);

@@ -20,16 +20,6 @@ export const api = {
     createGuestSession: () => apiClient<{ token: string; user: any; preferences: any }>("/api/v1/auth/guest", { method: "POST" }),
   },
 
-  // Users & Preferences
-  users: {
-    getPreferences: () => apiClient<any>("/api/v1/preferences"),
-    updatePreferences: (prefs: any) =>
-      apiClient<any>("/api/v1/preferences", {
-        method: "PUT",
-        body: JSON.stringify(prefs),
-      }),
-    getProfile: () => apiClient<any>("/api/v1/users/profile"),
-  },
 
   // Recipes (MongoDB Atlas + TheMealDB Provider)
   recipes: {
@@ -208,10 +198,39 @@ export const api = {
     checkStatus: (recipeId: string) => apiClient<{ isFavorited: boolean }>(`/api/v1/favorites/status/${recipeId}`),
   },
 
+  // Users & Profile
+  users: {
+    getProfile: () => apiClient<any>("/api/v1/users/profile"),
+    getProfileSummary: () =>
+      apiClient<{
+        user: {
+          userId: string;
+          displayName: string;
+          email?: string;
+          avatar?: string;
+          isGuest: boolean;
+        };
+        preferences: any;
+        stats: {
+          memberSince?: string;
+          savedRecipeCount: number;
+          recipesCooked: number;
+          recentCookCount: number;
+          pantryItemCount: number;
+        } | null;
+      }>("/api/v1/users/profile-summary"),
+    getPreferences: () => apiClient<any>("/api/v1/preferences"),
+    updatePreferences: (preferences: any) =>
+      apiClient<any>("/api/v1/preferences", {
+        method: "PUT",
+        body: JSON.stringify(preferences),
+      }),
+  },
+
   // Shopping List
   shopping: {
     getList: () => apiClient<any[]>("/api/v1/shopping-list"),
-    addItem: (name: string, quantity = "1", unit = "unit", category = "General", recipeId?: string) =>
+    addItem: (name: string, quantity?: string, unit?: string, category = "General", recipeId?: string) =>
       apiClient<any>("/api/v1/shopping-list", {
         method: "POST",
         body: JSON.stringify({ name, quantity, unit, category, recipeId }),

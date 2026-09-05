@@ -13,8 +13,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "tsc --noEmit && tsc -p backend/tsconfig.json --noEmit",
+    "test:frontend": "tsx --test test/*.test.ts",
     "test:backend": "tsx --tsconfig backend/tsconfig.json --test backend/test/*.test.ts",
-    "test": "npm run lint && npm run test:backend"
+    "test": "npm run lint && npm run test:frontend && npm run test:backend"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
@@ -29,7 +30,10 @@
     "@tanstack/react-query": "^5.102.8",
     "dotenv": "^17.2.3",
     "expo": "~57.0.20",
+    "expo-auth-session": "~57.0.11",
+    "expo-clipboard": "~57.0.1",
     "expo-constants": "^57.0.17",
+    "expo-crypto": "~57.0.2",
     "expo-haptics": "^57.0.2",
     "expo-image": "^57.0.4",
     "expo-linking": "^57.0.9",

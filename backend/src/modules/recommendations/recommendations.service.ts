@@ -29,8 +29,18 @@ export class RecommendationsService {
   ) {}
 
   async getRecommendations(userId: string) {
-    // 1. Fetch user pantry items
-    const pantry = await this.pantryModel.find({ userId }).lean();
+    // 1. Fetch user pantry items (excluding expired items)
+    const now = new Date();
+    const pantry = await this.pantryModel
+      .find({
+        userId,
+        $or: [
+          { expiryDate: { $exists: false } },
+          { expiryDate: null },
+          { expiryDate: { $gte: now } },
+        ],
+      })
+      .lean();
     const pantryItemNames = pantry.map((p) => p.name || p.normalizedName);
 
     // 2. Fetch user preferences

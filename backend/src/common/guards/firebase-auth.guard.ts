@@ -99,7 +99,7 @@ export class FirebaseAuthGuard implements CanActivate {
       if (isPublic) {
         request.user = {
           userId: "guest_anonymous",
-          displayName: "Guest Chef",
+          displayName: "Guest",
           isGuest: true,
           role: "user",
         } as AuthenticatedUser;
@@ -116,7 +116,7 @@ export class FirebaseAuthGuard implements CanActivate {
       if (isPublic) {
         request.user = {
           userId: "guest_anonymous",
-          displayName: "Guest Chef",
+          displayName: "Guest",
           isGuest: true,
           role: "user",
         } as AuthenticatedUser;
@@ -130,7 +130,7 @@ export class FirebaseAuthGuard implements CanActivate {
       if (isPublic) {
         request.user = {
           userId: token === "guest" ? "guest_anonymous" : token,
-          displayName: "Guest Chef",
+          displayName: "Guest",
           isGuest: true,
           role: "user",
         } as AuthenticatedUser;
@@ -150,7 +150,7 @@ export class FirebaseAuthGuard implements CanActivate {
         request.user = {
           userId: decoded.uid,
           email: decoded.email,
-          displayName: decoded.name || decoded.email?.split("@")[0] || "Chef",
+          displayName: decoded.name || decoded.email?.split("@")[0] || "User",
           avatar: decoded.picture,
           isGuest: false,
           role: isAdmin ? "admin" : "user",
@@ -160,7 +160,7 @@ export class FirebaseAuthGuard implements CanActivate {
         if (isPublic) {
           request.user = {
             userId: "guest_anonymous",
-            displayName: "Guest Chef",
+            displayName: "Guest",
             isGuest: true,
             role: "user",
           } as AuthenticatedUser;
@@ -173,7 +173,7 @@ export class FirebaseAuthGuard implements CanActivate {
       if (isPublic) {
         request.user = {
           userId: "guest_anonymous",
-          displayName: "Guest Chef",
+          displayName: "Guest",
           isGuest: true,
           role: "user",
         } as AuthenticatedUser;

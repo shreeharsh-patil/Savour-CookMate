@@ -44,28 +44,44 @@ export class UsersService {
   }
 
   async getProfile(userId: string) {
-    const user = await this.userModel.findOne({ firebaseUid: userId });
+    const user = await this.userModel.findOne({ firebaseUid: userId }).lean();
     const preferences = await this.getPreferences(userId);
-    const [savedCount, cookedCount, pantryCount] = await Promise.all([
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [savedCount, cookedCount, recentCookCount, pantryCount] = await Promise.all([
       this.favoriteModel.countDocuments({ userId }),
       this.historyModel.countDocuments({ userId }),
+      this.historyModel.countDocuments({ userId, cookedAt: { $gte: thirtyDaysAgo } }),
       this.pantryModel.countDocuments({ userId }),
     ]);
+
+    const memberSince = (user as any)?.createdAt
+      ? new Date((user as any).createdAt).toISOString()
+      : undefined;
+
+    const isGuest = Boolean(user?.isGuest);
+    const fallbackName = isGuest ? "Guest" : (user?.email ? user.email.split("@")[0] : "User");
 
     return {
       user: {
         userId: user?.firebaseUid || userId,
-        displayName: user?.displayName || "Home Cook",
-        email: user?.email,
-        avatar: user?.avatar,
-        isGuest: user?.isGuest || false,
+        displayName: user?.displayName || fallbackName,
+        email: user?.email || "",
+        avatar: user?.avatar || "",
+        isGuest,
       },
       preferences,
-      stats: {
-        savedRecipes: savedCount,
-        cookedRecipes: cookedCount,
-        pantryItems: pantryCount,
-      },
+      stats: isGuest
+        ? null
+        : {
+            memberSince,
+            savedRecipeCount: savedCount,
+            recipesCooked: cookedCount,
+            recentCookCount,
+            pantryItemCount: pantryCount,
+          },
     };
   }
 }

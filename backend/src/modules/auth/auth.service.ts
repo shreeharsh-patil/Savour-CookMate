@@ -19,7 +19,7 @@ export class AuthService {
       user = await this.userModel.create({
         firebaseUid: authUser.userId,
         email: authUser.email,
-        displayName: authUser.displayName || "Home Cook",
+        displayName: authUser.displayName || (authUser.isGuest ? "Guest" : "User"),
         avatar: authUser.avatar,
         isGuest: authUser.isGuest,
       });
