@@ -82,11 +82,11 @@ export class MealDbRecipeProvider implements RecipeProvider {
       };
     });
 
-    const category = meal.strCategory || "Miscellaneous";
-    const cuisine = meal.strArea || "International";
+    const category = meal.strCategory ? meal.strCategory.trim() : undefined;
+    const cuisine = meal.strArea ? meal.strArea.trim() : undefined;
     const dietaryTags: string[] = [];
 
-    const lowerCat = category.toLowerCase();
+    const lowerCat = (category || "").toLowerCase();
     if (lowerCat.includes("vegan")) {
       dietaryTags.push("Vegan", "Vegetarian");
     } else if (lowerCat.includes("vegetarian")) {
@@ -102,7 +102,14 @@ export class MealDbRecipeProvider implements RecipeProvider {
       dietaryTags.push("Non-Vegetarian");
     }
 
-    const slug = `${meal.strMeal.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${meal.idMeal}`;
+    const mealName = meal.strMeal || "Unknown Recipe";
+    const slug = `${mealName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${meal.idMeal || "unknown"}`;
+
+    const descParts: string[] = [];
+    if (cuisine) descParts.push(cuisine);
+    if (category) descParts.push(category.toLowerCase());
+    const descPrefix = descParts.length > 0 ? `${descParts.join(" ")} dish: ` : "";
+    const description = `${descPrefix}${mealName}`;
 
     const rawYoutube = typeof meal.strYoutube === "string" && meal.strYoutube.trim() ? meal.strYoutube.trim() : undefined;
     const youtubeVideoId = extractYouTubeVideoId(rawYoutube) || undefined;
@@ -111,9 +118,9 @@ export class MealDbRecipeProvider implements RecipeProvider {
     return {
       externalId: meal.idMeal,
       provider: this.providerName,
-      name: meal.strMeal,
+      name: mealName,
       slug,
-      description: `${cuisine} style ${category.toLowerCase()} dish: ${meal.strMeal}`,
+      description,
       imageUrl: meal.strMealThumb || "",
       thumbnailUrl: meal.strMealThumb ? `${meal.strMealThumb}/preview` : "",
       category,
@@ -121,7 +128,7 @@ export class MealDbRecipeProvider implements RecipeProvider {
       ingredients,
       instructions: instructionLines,
       steps,
-      youtubeSearchQuery: rawYoutube ? undefined : `${meal.strMeal} recipe tutorial`,
+      youtubeSearchQuery: rawYoutube ? undefined : `${mealName} recipe tutorial`,
       youtubeUrl: rawYoutube,
       youtubeVideoId,
       sourceUrl: rawSource,
@@ -131,7 +138,9 @@ export class MealDbRecipeProvider implements RecipeProvider {
       servings: undefined,
       dietaryTags,
       difficulty: undefined,
-      searchKeywords: [meal.strMeal, category, cuisine, ...ingredients.map((i) => i.name)],
+      searchKeywords: [mealName, category, cuisine, ...ingredients.map((i) => i.name)].filter(
+        (k): k is string => typeof k === "string" && k.length > 0,
+      ),
       lastSyncedAt: new Date(),
     };
   }
@@ -188,16 +197,16 @@ export class MealDbRecipeProvider implements RecipeProvider {
         imageUrl: m.strMealThumb,
         thumbnailUrl: m.strMealThumb ? `${m.strMealThumb}/preview` : "",
         category,
-        cuisine: "International",
+        cuisine: undefined,
         ingredients: [],
         instructions: [],
         steps: [],
-        totalTime: 30,
-        prepTime: 10,
-        cookTime: 20,
-        servings: 2,
+        totalTime: undefined,
+        prepTime: undefined,
+        cookTime: undefined,
+        servings: undefined,
         dietaryTags: [],
-        difficulty: "Medium",
+        difficulty: undefined,
         searchKeywords: [m.strMeal, category],
         lastSyncedAt: new Date(),
       };
@@ -221,17 +230,17 @@ export class MealDbRecipeProvider implements RecipeProvider {
         description: `${cuisine} dish: ${m.strMeal}`,
         imageUrl: m.strMealThumb,
         thumbnailUrl: m.strMealThumb ? `${m.strMealThumb}/preview` : "",
-        category: "Main Course",
+        category: undefined,
         cuisine,
         ingredients: [],
         instructions: [],
         steps: [],
-        totalTime: 30,
-        prepTime: 10,
-        cookTime: 20,
-        servings: 2,
+        totalTime: undefined,
+        prepTime: undefined,
+        cookTime: undefined,
+        servings: undefined,
         dietaryTags: [],
-        difficulty: "Medium",
+        difficulty: undefined,
         searchKeywords: [m.strMeal, cuisine],
         lastSyncedAt: new Date(),
       };
@@ -255,17 +264,17 @@ export class MealDbRecipeProvider implements RecipeProvider {
         description: `Dish featuring ${ingredient}: ${m.strMeal}`,
         imageUrl: m.strMealThumb,
         thumbnailUrl: m.strMealThumb ? `${m.strMealThumb}/preview` : "",
-        category: "Main Course",
-        cuisine: "International",
+        category: undefined,
+        cuisine: undefined,
         ingredients: [{ name: ingredient, normalizedName: ingredient.toLowerCase(), quantity: "1", unit: "portion" }],
         instructions: [],
         steps: [],
-        totalTime: 30,
-        prepTime: 10,
-        cookTime: 20,
-        servings: 2,
+        totalTime: undefined,
+        prepTime: undefined,
+        cookTime: undefined,
+        servings: undefined,
         dietaryTags: [],
-        difficulty: "Medium",
+        difficulty: undefined,
         searchKeywords: [m.strMeal, ingredient],
         lastSyncedAt: new Date(),
       };

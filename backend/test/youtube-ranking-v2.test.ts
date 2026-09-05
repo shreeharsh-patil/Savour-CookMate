@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { buildProgressiveQueries, calculateRelevanceScore, normalizeDishName, rankAndFilterVideos, validateVideoCandidate } from "../src/modules/youtube/providers/ranking.utils";
+import { buildProgressiveQueries, calculateRelevanceScore, detectVideoLanguage, normalizeDishName, rankAndFilterVideos, validateVideoCandidate } from "../src/modules/youtube/providers/ranking.utils";
 import { VideoMetadata, VideoSearchOptions } from "../src/modules/youtube/providers/video-provider.interface";
 
 const candidate = (title: string, overrides: Partial<VideoMetadata> = {}): VideoMetadata => ({
@@ -93,7 +93,26 @@ describe("YouTube ranking v2", () => {
     }));
     assert.ok(queries.includes("Paneer Butter Masala recipe"));
     assert.ok(queries.includes("paneer makhani recipe"));
+    assert.ok(queries.includes("North Indian paneer curry recipe"));
+    assert.ok(queries.includes("paneer curry recipe"));
     assert.ok(queries.includes("paneer North Indian recipe"));
     assert.equal(new Set(queries).size, queries.length);
+  });
+
+  test("accurately differentiates Marathi from Hindi video titles and descriptions", () => {
+    // Marathi specific scripts/words
+    assert.equal(detectVideoLanguage("झणझणीत मिसळ कशी बनवावी | Misal Pav Recipe in Marathi"), "Marathi");
+    assert.equal(detectVideoLanguage("झणझणीत कोल्हापुरी मिसळ रेसिपी"), "Marathi"); // contains Marathi 'ळ' (\u0933)
+    assert.equal(detectVideoLanguage("गावरान पिठलं भाकरी रेसिपी"), "Marathi"); // contains गावरान and भाकरी
+    assert.equal(detectVideoLanguage("चकली कशी करावी - दिवाळी फराळ"), "Marathi");
+    assert.equal(detectVideoLanguage("Maharashtrian Poha Recipe in marathi"), "Marathi");
+
+    // Hindi specific words
+    assert.equal(detectVideoLanguage("पनीर बटर मसाला बनाने की विधि | Paneer Recipe in Hindi"), "Hindi");
+    assert.equal(detectVideoLanguage("स्वादिष्ट दाल तड़का कैसे बनाएं"), "Hindi");
+    assert.equal(detectVideoLanguage("हलवाई जैसा समोसा बनाने का तरीका"), "Hindi");
+
+    // English
+    assert.equal(detectVideoLanguage("Crispy Masala Dosa Recipe in English"), "English");
   });
 });

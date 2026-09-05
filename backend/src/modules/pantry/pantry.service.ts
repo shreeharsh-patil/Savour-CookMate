@@ -37,8 +37,11 @@ export class PantryService {
     const now = new Date();
     const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
+    const expired = items.filter((i) => i.expiryDate && new Date(i.expiryDate) < now);
+    const expiringSoon = items.filter(
+      (i) => i.expiryDate && new Date(i.expiryDate) >= now && new Date(i.expiryDate) <= threeDaysFromNow
+    );
     const runningLow = items.filter((i) => i.lowStock);
-    const expiringSoon = items.filter((i) => i.expiryDate && new Date(i.expiryDate) <= threeDaysFromNow);
     const available = items.filter((i) => !i.lowStock && (!i.expiryDate || new Date(i.expiryDate) > threeDaysFromNow));
     const recentlyAdded = [...items].slice(0, 8);
 
@@ -48,6 +51,7 @@ export class PantryService {
         available,
         runningLow,
         expiringSoon,
+        expired,
         recentlyAdded,
       },
       counts: {
@@ -55,6 +59,7 @@ export class PantryService {
         available: available.length,
         runningLow: runningLow.length,
         expiringSoon: expiringSoon.length,
+        expired: expired.length,
       },
     };
   }
@@ -165,7 +170,9 @@ export class PantryService {
 
     const now = new Date();
     const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-    const expiringItems = pantryItems.filter((i) => i.expiryDate && new Date(i.expiryDate) <= threeDaysFromNow);
+    const expiringItems = pantryItems.filter(
+      (i) => i.expiryDate && new Date(i.expiryDate) >= now && new Date(i.expiryDate) <= threeDaysFromNow
+    );
 
     for (const recipe of recipes) {
       const required = recipe.ingredients.filter((i) => !i.optional);

@@ -146,6 +146,7 @@ export async function getPersistentGuestId(): Promise<string> {
 
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
+  _isRetry?: boolean;
 }
 
 /**
@@ -272,8 +273,23 @@ export async function apiClient<T>(
     }
   }
 
-  // Preserve actual HTTP error codes from server (DO NOT RETRY 4xx or 5xx)
+  // Preserve actual HTTP error codes from server with controlled refresh-and-retry on 401
   if (!response.ok) {
+    if (response.status === 401 && token && !options._isRetry) {
+      try {
+        const { getFreshFirebaseIdToken } = await import("./firebaseClient");
+        const freshToken = await getFreshFirebaseIdToken();
+        if (freshToken) {
+          return await apiClient<T>(endpoint, {
+            ...options,
+            _isRetry: true,
+          });
+        }
+      } catch (refreshErr) {
+        console.warn("Token refresh attempt failed on 401:", refreshErr);
+      }
+    }
+
     let errorMessage = `HTTP Error ${response.status}`;
     try {
       const errorData = await response.json();

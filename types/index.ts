@@ -45,6 +45,7 @@ export interface InstructionStep {
 
 export interface Recipe {
   id: string;
+  slug?: string;
   name: string;
   title: string;
   description: string;

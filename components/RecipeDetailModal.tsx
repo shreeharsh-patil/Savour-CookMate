@@ -69,7 +69,6 @@ const RecipeDetailModalContent: React.FC<{
   );
   const userPreferences = useAppStore((state) => state.userPreferences);
   const setToast = useAppStore((state) => state.setToast);
-  const setActiveVideo = useAppStore((state) => state.setActiveVideo);
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [currentServings, setCurrentServings] = useState<number>(recipe.servings || 4);
@@ -111,16 +110,24 @@ const RecipeDetailModalContent: React.FC<{
   const [nutritionData, setNutritionData] = useState<{
     isEstimated: boolean;
     unavailable?: boolean;
+    perServingUnavailable?: boolean;
     label: string;
     confidence?: string;
     disclaimer: string;
-    perServing: {
+    perServing?: {
       calories: number;
       protein: number;
       carbs: number;
       fat: number;
       fiber?: number;
-    };
+    } | null;
+    totalDish?: {
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      fiber?: number;
+    } | null;
   } | null>(null);
 
   const baseServings = recipe.servings || 4;
@@ -509,6 +516,46 @@ const RecipeDetailModalContent: React.FC<{
                     <Text style={styles.nutritionDisclaimerText}>
                       Standard USDA nutritional breakdown is currently unavailable for this recipe.
                     </Text>
+                  ) : nutritionData?.perServingUnavailable || !nutritionData?.perServing ? (
+                    <>
+                      <Text style={styles.nutritionDisclaimerText}>
+                        Total recipe • USDA FoodData Central reference (per-serving unavailable: serving count unknown)
+                      </Text>
+                      <View style={styles.nutritionGrid}>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Total Cal</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.totalDish?.calories ? `${nutritionData.totalDish.calories} kcal` : '--'}
+                          </Text>
+                        </View>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Total Protein</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.totalDish?.protein !== undefined ? `${nutritionData.totalDish.protein}g` : '--'}
+                          </Text>
+                        </View>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Total Carbs</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.totalDish?.carbs !== undefined ? `${nutritionData.totalDish.carbs}g` : '--'}
+                          </Text>
+                        </View>
+                        <View style={styles.nutritionCell}>
+                          <Text style={styles.nutritionLabel}>Total Fat</Text>
+                          <Text style={styles.nutritionVal}>
+                            {nutritionData?.totalDish?.fat !== undefined ? `${nutritionData.totalDish.fat}g` : '--'}
+                          </Text>
+                        </View>
+                        {nutritionData?.totalDish?.fiber !== undefined ? (
+                          <View style={styles.nutritionCell}>
+                            <Text style={styles.nutritionLabel}>Total Fiber</Text>
+                            <Text style={styles.nutritionVal}>
+                              {nutritionData.totalDish.fiber}g
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </>
                   ) : (
                     <>
                       <Text style={styles.nutritionDisclaimerText}>

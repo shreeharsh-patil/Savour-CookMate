@@ -7,7 +7,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAppStore } from "../store/useAppStore";
 import { Toast } from "../components/Toast";
 import { RecipeDetailModal } from "../components/RecipeDetailModal";
-import { YouTubePlayerModal } from "../components/YouTubePlayerModal";
 import { ShoppingListModal } from "../components/ShoppingListModal";
 import { AuthModal } from "../components/AuthModal";
 import { OnboardingModal } from "../components/OnboardingModal";
@@ -48,7 +47,6 @@ export default function RootLayout() {
             recipe={selectedRecipe}
             onClose={() => setSelectedRecipe(null)}
           />
-          <YouTubePlayerModal />
           <ShoppingListModal />
           <AuthModal />
           <OnboardingModal />

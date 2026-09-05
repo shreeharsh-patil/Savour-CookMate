@@ -117,4 +117,58 @@ describe("MealDbRecipeProvider - Meal Normalization & Step Extraction", () => {
     assert.equal(normalized.cookTime, undefined);
     assert.equal(normalized.prepTime, undefined);
   });
+
+  test("getByCategory returns shallow recipe without fake cuisine, times, servings, or difficulty", async () => {
+    (provider as any).fetchWithTimeout = async () => ({
+      meals: [{ idMeal: "52772", strMeal: "Teriyaki Chicken", strMealThumb: "https://example.com/thumb.jpg" }],
+    });
+
+    const results = await provider.getByCategory("Chicken");
+    assert.equal(results.length, 1);
+    const item = results[0];
+    assert.equal(item.name, "Teriyaki Chicken");
+    assert.equal(item.category, "Chicken");
+    assert.equal(item.cuisine, undefined);
+    assert.equal(item.totalTime, undefined);
+    assert.equal(item.prepTime, undefined);
+    assert.equal(item.cookTime, undefined);
+    assert.equal(item.servings, undefined);
+    assert.equal(item.difficulty, undefined);
+  });
+
+  test("getByCuisine returns shallow recipe without fake category, times, servings, or difficulty", async () => {
+    (provider as any).fetchWithTimeout = async () => ({
+      meals: [{ idMeal: "52772", strMeal: "Teriyaki Chicken", strMealThumb: "https://example.com/thumb.jpg" }],
+    });
+
+    const results = await provider.getByCuisine("Japanese");
+    assert.equal(results.length, 1);
+    const item = results[0];
+    assert.equal(item.name, "Teriyaki Chicken");
+    assert.equal(item.cuisine, "Japanese");
+    assert.equal(item.category, undefined);
+    assert.equal(item.totalTime, undefined);
+    assert.equal(item.prepTime, undefined);
+    assert.equal(item.cookTime, undefined);
+    assert.equal(item.servings, undefined);
+    assert.equal(item.difficulty, undefined);
+  });
+
+  test("getByIngredient returns shallow recipe without fake category, cuisine, times, servings, or difficulty", async () => {
+    (provider as any).fetchWithTimeout = async () => ({
+      meals: [{ idMeal: "52772", strMeal: "Teriyaki Chicken", strMealThumb: "https://example.com/thumb.jpg" }],
+    });
+
+    const results = await provider.getByIngredient("chicken");
+    assert.equal(results.length, 1);
+    const item = results[0];
+    assert.equal(item.name, "Teriyaki Chicken");
+    assert.equal(item.category, undefined);
+    assert.equal(item.cuisine, undefined);
+    assert.equal(item.totalTime, undefined);
+    assert.equal(item.prepTime, undefined);
+    assert.equal(item.cookTime, undefined);
+    assert.equal(item.servings, undefined);
+    assert.equal(item.difficulty, undefined);
+  });
 });

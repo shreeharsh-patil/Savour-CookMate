@@ -22,8 +22,8 @@ export interface NormalizedRecipe {
   description: string;
   imageUrl: string;
   thumbnailUrl?: string;
-  category: string;
-  cuisine: string;
+  category?: string;
+  cuisine?: string;
   ingredients: NormalizedIngredientItem[];
   instructions: string[];
   steps: NormalizedStepItem[];

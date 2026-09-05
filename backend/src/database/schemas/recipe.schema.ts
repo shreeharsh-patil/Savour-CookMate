@@ -88,8 +88,8 @@ export class Recipe {
   @Prop({ type: String, default: "" })
   description: string;
 
-  @Prop({ type: String, required: true, index: true })
-  cuisine: string;
+  @Prop({ type: String, required: false, index: true })
+  cuisine?: string;
 
   @Prop({ type: [String], default: [], index: true })
   mealTypes: string[];
@@ -112,8 +112,8 @@ export class Recipe {
   @Prop({ type: Number, required: false })
   servings?: number;
 
-  @Prop({ type: String, default: "Main Course", index: true })
-  category: string;
+  @Prop({ type: String, required: false, index: true })
+  category?: string;
 
   @Prop({ type: [RecipeIngredientSchema], default: [] })
   ingredients: RecipeIngredient[];

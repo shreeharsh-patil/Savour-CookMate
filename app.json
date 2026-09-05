@@ -1,21 +1,21 @@
 {
   "expo": {
-    "name": "Savour CookMate",
-    "slug": "savour-cookmate",
+    "name": "Yummy Tummy",
+    "slug": "yummy-tummy",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "savour",
+    "scheme": "yummytummy",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.savour.cookmate"
+      "bundleIdentifier": "com.yummytummy.app"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FAF8F5"
       },
-      "package": "com.savour.cookmate"
+      "package": "com.yummytummy.app"
     },
     "web": {
       "bundler": "metro",

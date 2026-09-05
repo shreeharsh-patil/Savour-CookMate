@@ -6,6 +6,8 @@ import {
   createUserWithEmailAndPassword,
   signOut as fbSignOut,
   updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
   User as FirebaseUser,
   Auth,
 } from "firebase/auth";
@@ -75,6 +77,17 @@ export async function firebaseSignUp(email: string, pass: string, displayName?: 
 
 export async function firebaseSignIn(email: string, pass: string): Promise<{ token: string; user: FirebaseUser }> {
   const cred = await signInWithEmailAndPassword(requireAuth(), email, pass);
+  const token = await cred.user.getIdToken();
+  await setStoredToken(token);
+  return { token, user: cred.user };
+}
+
+export async function firebaseSignInWithGoogle(): Promise<{ token: string; user: FirebaseUser }> {
+  const configuredAuth = requireAuth();
+  const provider = new GoogleAuthProvider();
+  provider.addScope("profile");
+  provider.addScope("email");
+  const cred = await signInWithPopup(configuredAuth, provider);
   const token = await cred.user.getIdToken();
   await setStoredToken(token);
   return { token, user: cred.user };

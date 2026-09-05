@@ -20,7 +20,7 @@ import {
 import { api } from "../services/api";
 import { mapMongoRecipeToClient, recipeService } from "../services/recipeService";
 import { setStoredToken, clearStoredToken, getStoredToken } from "../services/apiClient";
-import { firebaseSignIn, firebaseSignUp, firebaseSignOut } from "../services/firebaseClient";
+import { firebaseSignIn, firebaseSignUp, firebaseSignOut, firebaseSignInWithGoogle } from "../services/firebaseClient";
 
 interface ToastState {
   message: string;
@@ -132,8 +132,6 @@ interface AppState {
   setAuthModalOpen: (open: boolean) => void;
   isOnboardingOpen: boolean;
   setOnboardingOpen: (open: boolean) => void;
-  activeVideo: YouTubeVideo | null;
-  setActiveVideo: (video: YouTubeVideo | null) => void;
   toast: ToastState | null;
   setToast: (toast: ToastState | string | null) => void;
 }
@@ -188,27 +186,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Fetch authenticated profile from MongoDB.
       const token = await getStoredToken();
       if (token) {
-        const res = await api.auth.getMe();
-        if (res?.user) {
-          const authUser: AuthUser = {
-            id: res.user.firebaseUid || res.user.id,
-            email: res.user.email || "",
-            name: res.user.displayName || "Home Cook",
-            isGuest: res.user.isGuest || false,
-            avatar: res.user.avatar,
-          };
-          set({
-            currentUser: authUser,
-            userProfile: {
-              name: authUser.name,
-              email: authUser.email,
-              avatar: authUser.avatar,
-              memberSince: new Date().getFullYear().toString(),
-              totalRecipesCooked: 0,
-              savedRecipeCount: 0,
-              level: "Kitchen Explorer",
-            },
-          });
+        try {
+          const res = await api.auth.getMe();
+          if (res?.user) {
+            const authUser: AuthUser = {
+              id: res.user.firebaseUid || res.user.id,
+              email: res.user.email || "",
+              name: res.user.displayName || "Home Cook",
+              isGuest: res.user.isGuest || false,
+              avatar: res.user.avatar,
+            };
+            set({
+              currentUser: authUser,
+              userProfile: {
+                name: authUser.name,
+                email: authUser.email,
+                avatar: authUser.avatar,
+                memberSince: new Date().getFullYear().toString(),
+                totalRecipesCooked: 0,
+                savedRecipeCount: 0,
+                level: "Kitchen Explorer",
+              },
+            });
+          } else {
+            await clearStoredToken();
+            await get().signInAsGuest();
+          }
+        } catch (authErr) {
+          console.warn("Stored token invalid or expired, falling back to guest:", authErr);
+          await clearStoredToken();
+          await get().signInAsGuest();
         }
       } else {
         await get().signInAsGuest();
@@ -229,19 +236,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   signInWithGoogle: async () => {
     try {
+      const { user: fbUser } = await firebaseSignInWithGoogle();
       const res = await api.auth.verifySession();
-      if (res?.user) {
+      if (res?.user || fbUser) {
         const user: AuthUser = {
-          id: res.user.firebaseUid,
-          name: res.user.displayName || "Google Chef",
-          email: res.user.email || "",
+          id: res?.user?.firebaseUid || fbUser.uid,
+          name: res?.user?.displayName || fbUser.displayName || "Google Chef",
+          email: res?.user?.email || fbUser.email || "",
           isGuest: false,
         };
         set({ currentUser: user, isAuthModalOpen: false });
         get().setToast({ message: `Welcome back, ${user.name}!`, type: "success" });
         return { user };
       }
-      return { error: "Google Sign-In configuration required on this device." };
+      return { error: "Failed to verify session after Google Sign-In." };
     } catch (err: any) {
       return { error: err.message || "Google Sign-In failed." };
     }
@@ -843,6 +851,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ selectedRecipe: recipe });
     if (recipe) {
       get().addRecentlyViewed(recipe);
+      if ((!recipe.instructions || recipe.instructions.length === 0) && (recipe.id || recipe.slug)) {
+        api.recipes
+          .getById(recipe.id || recipe.slug!)
+          .then((full: any) => {
+            if (full && Array.isArray(full.instructions) && full.instructions.length > 0) {
+              const mapped = mapMongoRecipeToClient(full);
+              const current = get().selectedRecipe;
+              if (current && (current.id === recipe.id || current.slug === recipe.slug)) {
+                set({ selectedRecipe: mapped });
+              }
+            }
+          })
+          .catch((err: any) => console.warn("Failed to hydrate recipe detail:", err));
+      }
     }
   },
 
@@ -855,9 +877,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   isOnboardingOpen: false,
   setOnboardingOpen: (open: boolean) => set({ isOnboardingOpen: open }),
-
-  activeVideo: null,
-  setActiveVideo: (video: YouTubeVideo | null) => set({ activeVideo: video }),
 
   toast: null,
   setToast: (toast: ToastState | string | null) => {

@@ -106,7 +106,33 @@ export function validateVideoCandidate(video: Pick<VideoMetadata, "title" | "des
 
 export function detectVideoLanguage(title: string, description = ""): string | undefined {
   const text = `${title} ${description}`;
-  if (/\b(recipe|video|in)\s+(in\s+)?hindi\b/i.test(text) || /[\u0900-\u097F]/.test(text)) return "Hindi";
+  if (
+    /\b(recipe|video|in)\s+(in\s+)?marathi\b/i.test(text) ||
+    /\bmarathi\b/i.test(text) ||
+    /\bmarathit\b/i.test(text) ||
+    /मराठी/.test(text) ||
+    /\u0933/.test(text) ||
+    /गावरान/.test(text) ||
+    /भाकर[ी]?/.test(text) ||
+    /झुणका/.test(text) ||
+    /कशी\s+(बनवावी|करावी)/.test(text) ||
+    /कसे\s+(बनवायचे|करावे)/.test(text) ||
+    /कसा\s+बनवायचा/.test(text) ||
+    /कृती/.test(text)
+  ) {
+    return "Marathi";
+  }
+  if (
+    /\b(recipe|video|in)\s+(in\s+)?hindi\b/i.test(text) ||
+    /\bhindi\b/i.test(text) ||
+    /हिंदी|हिन्दी/.test(text) ||
+    /बनाने\s+की\s+विधि/.test(text) ||
+    /कैसे\s+(बनाएं|बनाये|बनाते)/.test(text) ||
+    /का\s+तरीका/.test(text) ||
+    /[\u0900-\u097F]/.test(text)
+  ) {
+    return "Hindi";
+  }
   if (/\b(recipe|video|in)\s+(in\s+)?english\b/i.test(text)) return "English";
   return undefined;
 }
@@ -165,6 +191,7 @@ export function rankAndFilterVideos(videos: VideoMetadata[], options: VideoSearc
 export function buildProgressiveQueries(options: VideoSearchOptions): string[] {
   const dish = options.dish.trim(); const features = options.recipeFeatures || {}; const ingredient = mainIngredient(options); const aliases = getDishAliases(dish).slice(1);
   const queries = [`${dish} recipe`, ...aliases.map((alias) => `${alias} recipe`)];
+  if (ingredient && features.cuisine && features.cookingMethod) queries.push(`${features.cuisine} ${ingredient} ${features.cookingMethod} recipe`);
   if (ingredient && features.cookingMethod) queries.push(`${ingredient} ${features.cookingMethod} recipe`);
   if (ingredient && features.cuisine) queries.push(`${ingredient} ${features.cuisine} recipe`);
   if (ingredient && features.category) queries.push(`${ingredient} ${features.category} recipe`);

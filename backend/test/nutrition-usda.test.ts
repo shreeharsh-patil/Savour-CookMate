@@ -82,13 +82,45 @@ describe("NutritionService & USDA Provider - Estimated Nutrition", () => {
     // Expected per serving calculation:
     // Chicken (200g = 2 * 165 cal = 330) + Rice (200g = 2 * 130 cal = 260) = 590 total calories
     // 590 total calories / 2 servings = ~295 calories per serving
-    assert.equal(result?.perServing.calories, 295);
+    assert.equal(result?.perServing?.calories, 295);
 
     // Protein: (2 * 31 = 62) + (2 * 2.7 = 5.4) = 67.4 / 2 = 33.7g
-    assert.equal(result?.perServing.protein, 33.7);
+    assert.equal(result?.perServing?.protein, 33.7);
 
     // Carbs: (2 * 0 = 0) + (2 * 28 = 56) = 56 / 2 = 28g
-    assert.equal(result?.perServing.carbs, 28);
+    assert.equal(result?.perServing?.carbs, 28);
+  });
+
+  test("returns perServingUnavailable: true and perServing: null when recipe servings is unknown", async () => {
+    const mockRecipeModel = {
+      findById: () => ({
+        lean: async () => ({
+          _id: "test-rec-unknown-servings",
+          name: "Chicken Bowl",
+          servings: undefined,
+          ingredients: [
+            { name: "chicken breast", quantity: "200", unit: "g" },
+          ],
+        }),
+      }),
+    };
+
+    const service = new NutritionService(
+      mockNutritionCacheModel as any,
+      mockRecipeModel as any,
+      mockUsdaProvider as any,
+      new IngredientsService(null as any)
+    );
+
+    const result = await service.estimateRecipeNutrition("test-rec-unknown-servings");
+
+    assert.ok(result);
+    assert.equal(result?.isEstimated, true);
+    assert.equal(result?.perServingUnavailable, true);
+    assert.equal(result?.perServing, null);
+    assert.ok(result?.totalDish);
+    assert.equal(result?.totalDish?.calories, 330);
+    assert.equal(result?.totalDish?.protein, 62);
   });
 
   test("falls back gracefully when USDA has no matches or recipe is unknown", async () => {

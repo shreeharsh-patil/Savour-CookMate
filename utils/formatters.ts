@@ -49,15 +49,31 @@ export function scaleIngredientQuantity(
 
   const factor = targetServings / baseServings;
 
-  // Check if starts with a number or fraction
-  const numMatch = originalQuantity.match(/^(\d+(?:\.\d+)?|\d+\/\d+)/);
+  // Match mixed fractions ("1 1/2", "1-1/2"), simple fractions ("1/2"), decimals ("1.5"), or integers ("2")
+  // Fraction branches MUST precede the bare integer branch to prevent matching "1" out of "1/2"
+  const numMatch = originalQuantity.match(/^(\d+\s*[- ]\s*\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)/);
   if (!numMatch) return originalQuantity;
 
-  let originalNum = parseFloat(numMatch[1]);
-  if (numMatch[1].includes('/')) {
-    const [num, den] = numMatch[1].split('/').map(Number);
-    if (den) originalNum = num / den;
+  const matchedStr = numMatch[1].trim();
+  let originalNum = 0;
+
+  if (matchedStr.includes('/')) {
+    const parts = matchedStr.split(/[\s-]+/);
+    if (parts.length === 2) {
+      // Mixed fraction: e.g. "1 1/2" or "1-1/2"
+      const whole = parseFloat(parts[0]) || 0;
+      const [num, den] = parts[1].split('/').map(Number);
+      originalNum = whole + (den ? num / den : 0);
+    } else {
+      // Simple fraction: e.g. "1/2"
+      const [num, den] = parts[0].split('/').map(Number);
+      originalNum = den ? num / den : 0;
+    }
+  } else {
+    originalNum = parseFloat(matchedStr);
   }
+
+  if (isNaN(originalNum) || originalNum <= 0) return originalQuantity;
 
   const scaled = originalNum * factor;
   const rounded = scaled >= 10 ? Math.round(scaled) : Math.round(scaled * 10) / 10;

@@ -64,6 +64,14 @@ export class RecipesService {
             existing.isHydrated = true;
             existing.detailFetchedAt = new Date();
           }
+          if (item.category && !existing.category) existing.category = item.category;
+          if (item.cuisine && !existing.cuisine) existing.cuisine = item.cuisine;
+          if (item.totalTime !== undefined && existing.totalTime === undefined) existing.totalTime = item.totalTime;
+          if (item.prepTime !== undefined && existing.prepTime === undefined) existing.prepTime = item.prepTime;
+          if (item.cookTime !== undefined && existing.cookTime === undefined) existing.cookTime = item.cookTime;
+          if (item.servings !== undefined && existing.servings === undefined) existing.servings = item.servings;
+          if (item.difficulty && !existing.difficulty) existing.difficulty = item.difficulty;
+          if (item.description && !existing.description) existing.description = item.description;
           if (!existing.youtubeUrl && item.youtubeUrl) existing.youtubeUrl = item.youtubeUrl;
           if (!existing.youtubeVideoId && item.youtubeVideoId) existing.youtubeVideoId = item.youtubeVideoId;
           if (!existing.sourceUrl && item.sourceUrl) existing.sourceUrl = item.sourceUrl;
@@ -248,10 +256,11 @@ export class RecipesService {
       recipe = await this.recipeModel.findOne({ externalId: cleanId }).lean();
     }
 
-    // 3. Hydrate provider records that were saved from shallow list/filter results.
-    if (!recipe || (!recipe.instructions?.length && recipe.provider === this.mealDbProvider.providerName)) {
+    // 3. Hydrate provider records that were saved from shallow list/filter results or missing instructions.
+    if (!recipe || (!recipe.instructions?.length && (recipe.provider === this.mealDbProvider.providerName || recipe.externalId || (recipe.slug && /-\d+$/.test(recipe.slug))))) {
       try {
-        const external = await this.mealDbProvider.getRecipe(recipe?.externalId || cleanId);
+        const mealId = recipe?.externalId || (recipe?.slug && recipe.slug.match(/-(\d+)$/)?.[1]) || cleanId;
+        const external = await this.mealDbProvider.getRecipe(mealId);
         if (external) {
           const [saved] = await this.upsertProviderRecipes([external]);
           recipe = saved;

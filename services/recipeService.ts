@@ -210,20 +210,31 @@ export const recipeService = {
         };
       });
 
-      // Map AI suggestions if present
+      // Map AI suggestions if present with deterministic match calculation from actual pantry
       if (res.aiSuggestions && res.aiSuggestions.length > 0) {
-        const pantryNames = new Set((items || []).map((item: any) => String(item).toLowerCase().trim()));
+        const pantryList = (items || []).map((item: any) => String(item).toLowerCase().trim()).filter(Boolean);
+        const matchesPantry = (req: string) =>
+          pantryList.some((p) => p === req || p.includes(req) || req.includes(p));
+
         for (const sug of res.aiSuggestions) {
           if (sug.matchedRecipe) {
             const recipe = mapMongoRecipeToClient(sug.matchedRecipe);
-            const required = (sug.requiredIngredients || []).map((ingredient: any) => String(ingredient.name || ingredient).toLowerCase().trim()).filter(Boolean);
-            const availableIngredients = required.filter((ingredient: string) => pantryNames.has(ingredient));
-            const missingIngredients = required.filter((ingredient: string) => !pantryNames.has(ingredient));
+            const rawRequired = (sug.requiredIngredients || []).map((ingredient: any) =>
+              String(ingredient.name || ingredient).toLowerCase().trim()
+            ).filter(Boolean);
+            const required = rawRequired.length > 0
+              ? rawRequired
+              : (recipe.ingredients || []).map((i) => i.name.toLowerCase().trim()).filter(Boolean);
+
+            const availableIngredients = required.filter(matchesPantry);
+            const missingIngredients = required.filter((ingredient: string) => !matchesPantry(ingredient));
             const totalRequiredCount = required.length;
             const availableCount = availableIngredients.length;
+            const matchPercentage = totalRequiredCount > 0 ? Math.round((availableCount / totalRequiredCount) * 100) : 0;
+
             recommendations.push({
               recipe,
-              matchPercentage: totalRequiredCount ? Math.round((availableCount / totalRequiredCount) * 100) : 0,
+              matchPercentage,
               availableIngredients,
               missingIngredients,
               optionalMissingIngredients: sug.optionalIngredients || [],

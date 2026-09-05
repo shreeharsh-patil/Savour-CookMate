@@ -66,6 +66,7 @@ export const api = {
         `/api/v1/recipes/cuisine/${encodeURIComponent(area)}?limit=${limit}`
       ),
     getRecipeDetail: (id: string) => apiClient<any>(`/api/v1/recipes/${id}`),
+    getById: (id: string) => apiClient<any>(`/api/v1/recipes/${encodeURIComponent(id)}`),
     rateRecipe: (
       id: string,
       rating: number,
@@ -293,16 +294,6 @@ export const api = {
       }>("/api/v1/ai/cook-with-what-i-have", {
         method: "POST",
         body: JSON.stringify({ ingredients, preferences }),
-      }),
-    getSubstitutions: (ingredient: string, dishContext?: string) =>
-      apiClient<any[]>("/api/v1/ai/substitutions", {
-        method: "POST",
-        body: JSON.stringify({ ingredient, dishContext }),
-      }),
-    getAdvice: (question: string, recipeName: string, stepInstruction?: string) =>
-      apiClient<{ advice: string }>("/api/v1/ai/advice", {
-        method: "POST",
-        body: JSON.stringify({ question, recipeName, stepInstruction }),
       }),
   },
 };
