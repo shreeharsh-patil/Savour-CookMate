@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  FlatList,
   StyleSheet,
   Pressable,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -184,14 +186,21 @@ export default function PantryScreen() {
 
   const pendingShoppingCount = shoppingList.filter((i) => !i.checked).length;
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header with Shopping List button */}
+  const renderMatchCardItem = useCallback(
+    ({ item }: { item: (typeof filteredRecommendations)[0] }) => (
+      <PantryMatchCard recommendation={item} />
+    ),
+    []
+  );
+
+  const matchCardKeyExtractor = useCallback(
+    (item: (typeof filteredRecommendations)[0]) => item.recipe.id,
+    []
+  );
+
+  const renderHeader = useCallback(() => (
+    <View style={styles.headerStack}>
+      {/* Header with Shopping List button */}
         <View style={styles.header}>
           <View>
             <Text style={styles.pretitle}>Zero-Waste Kitchen</Text>
@@ -560,21 +569,61 @@ export default function PantryScreen() {
                 );
               })}
             </ScrollView>
-
-            {/* Filtered Cards */}
-            {filteredRecommendations.length === 0 ? (
-              <EmptyState
-                title="No dishes in this tier"
-                description="Select 'All Matches' to view recommendations across all match percentages."
-              />
-            ) : (
-              filteredRecommendations.map((rec) => (
-                <PantryMatchCard key={rec.recipe.id} recommendation={rec} />
-              ))
-            )}
           </View>
         )}
-      </ScrollView>
+    </View>
+  ), [
+    pendingShoppingCount,
+    setIsShoppingListOpen,
+    inputMode,
+    inputName,
+    handleAddManual,
+    selectedCategory,
+    existingSet,
+    addPantryItem,
+    naturalLanguagePantryInput,
+    setNaturalLanguagePantryInput,
+    isExtracting,
+    handleExtractNlp,
+    pantryItems,
+    handleRemoveItem,
+    lastRemovedItem,
+    handleUndoRemove,
+    clearAllPantryItems,
+    findDishesICanMake,
+    isPantryCooking,
+    pantryError,
+    pantryRecommendations.length,
+    pantryMatchFilter,
+    countByTier,
+    setPantryMatchFilter,
+  ]);
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <FlatList
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        data={pantryRecommendations.length > 0 ? filteredRecommendations : []}
+        renderItem={renderMatchCardItem}
+        keyExtractor={matchCardKeyExtractor}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={
+          pantryRecommendations.length > 0 && filteredRecommendations.length === 0 ? (
+            <EmptyState
+              title="No dishes in this tier"
+              description="Select 'All Matches' to view recommendations across all match percentages."
+            />
+          ) : null
+        }
+        ListFooterComponent={<View style={{ height: SPACING.xl }} />}
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        updateCellsBatchingPeriod={50}
+      />
     </SafeAreaView>
   );
 }
@@ -591,6 +640,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.sm,
     paddingBottom: SPACING.xxxl,
+    gap: SPACING.md,
+  },
+  headerStack: {
     gap: SPACING.md,
   },
   header: {

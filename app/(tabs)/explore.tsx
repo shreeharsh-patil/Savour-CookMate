@@ -3,8 +3,10 @@ import {
   View,
   Text,
   ScrollView,
+  FlatList,
   StyleSheet,
   Pressable,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, SlidersHorizontal, Clock, RefreshCw } from 'lucide-react-native';
@@ -15,6 +17,7 @@ import { RecipeCardSkeleton } from '../../components/LoadingSkeleton';
 import { ErrorState } from '../../components/ErrorState';
 import { EmptyState } from '../../components/EmptyState';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../../constants/theme';
+import { Recipe } from '../../types';
 
 const CUISINES = [
   'All',
@@ -89,190 +92,226 @@ export default function ExploreScreen() {
     });
   }, [searchExploreRecipes]);
 
+  const renderRecipeItem = useCallback(
+    ({ item }: { item: Recipe }) => (
+      <View style={styles.recipeCardWrapper}>
+        <RecipeCard recipe={item} />
+      </View>
+    ),
+    []
+  );
+
+  const keyExtractor = useCallback((item: Recipe) => item.id, []);
+
+  const renderListHeader = useCallback(() => (
+    <View style={styles.headerStack}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.pretitle}>Culinary Exploration</Text>
+        <Text style={styles.title}>Explore Recipes</Text>
+      </View>
+
+      {/* Search */}
+      <RecipeSearch onSearch={handleSearch} showSuggestions={false} />
+
+      {/* Curated Rails Horizon */}
+      <View style={styles.filterSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillsList}
+        >
+          {CURATED_RAILS.map((rail) => {
+            const isSelected = activeCuratedRail === rail.label;
+            return (
+              <Pressable
+                key={rail.label}
+                style={[styles.railPill, isSelected && styles.railPillSelected]}
+                onPress={() => handleCuratedRailSelect(rail)}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Curated rail ${rail.label}`}
+              >
+                <Text
+                  style={[
+                    styles.railPillText,
+                    isSelected && styles.railPillTextSelected,
+                  ]}
+                >
+                  {rail.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Cuisines Filter */}
+      <View style={styles.filterSection}>
+        <Text style={styles.filterLabel}>Cuisines</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillsList}
+        >
+          {CUISINES.map((c) => {
+            const isSelected = selectedCuisine === c;
+            return (
+              <Pressable
+                key={c}
+                style={[styles.filterPill, isSelected && styles.filterPillSelected]}
+                onPress={() => handleCuisineSelect(c)}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Filter cuisine ${c}`}
+              >
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    isSelected && styles.filterPillTextSelected,
+                  ]}
+                >
+                  {c}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Dietary Filters */}
+      <View style={styles.filterSection}>
+        <Text style={styles.filterLabel}>Diet & Lifestyle</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillsList}
+        >
+          {DIETARY_FILTERS.map((d) => {
+            const isSelected = selectedDietary.includes(d);
+            return (
+              <Pressable
+                key={d}
+                style={[
+                  styles.dietPill,
+                  isSelected && styles.dietPillSelected,
+                ]}
+                onPress={() => {
+                  toggleDietary(d);
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Filter dietary ${d}`}
+              >
+                <Text
+                  style={[
+                    styles.dietPillText,
+                    isSelected && styles.dietPillTextSelected,
+                  ]}
+                >
+                  {d}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Results Header */}
+      <View style={styles.resultsHeader}>
+        <Text style={styles.resultsTitle}>
+          {isExploreLoading
+            ? 'Finding recipes...'
+            : `${exploreRecipes.length} recipes found`}
+        </Text>
+
+        <Pressable
+          style={styles.refreshBtn}
+          onPress={() => searchExploreRecipes()}
+          disabled={isExploreLoading}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh explore recipes"
+        >
+          <RefreshCw
+            size={14}
+            color={COLORS.primary}
+            style={isExploreLoading ? { opacity: 0.5 } : {}}
+          />
+          <Text style={styles.refreshBtnText}>Refresh</Text>
+        </Pressable>
+      </View>
+
+      {/* Error State */}
+      {exploreError ? (
+        <View style={styles.paddedContainer}>
+          <ErrorState
+            message={exploreError}
+            onRetry={() => searchExploreRecipes()}
+          />
+        </View>
+      ) : null}
+    </View>
+  ), [
+    handleSearch,
+    activeCuratedRail,
+    handleCuratedRailSelect,
+    selectedCuisine,
+    handleCuisineSelect,
+    selectedDietary,
+    toggleDietary,
+    isExploreLoading,
+    exploreRecipes.length,
+    searchExploreRecipes,
+    exploreError,
+  ]);
+
+  const renderListEmpty = useCallback(() => {
+    if (isExploreLoading && exploreRecipes.length === 0) {
+      return (
+        <View style={styles.paddedContainer}>
+          <RecipeCardSkeleton />
+          <RecipeCardSkeleton />
+        </View>
+      );
+    }
+    if (!isExploreLoading && exploreRecipes.length === 0 && !exploreError) {
+      return (
+        <View style={styles.paddedContainer}>
+          <EmptyState
+            title="No recipes match this search"
+            description="Try adjusting your filters or search for another delicious dish."
+            actionLabel="Reset Filters"
+            onAction={() => {
+              setSelectedCuisine('All');
+              setSearchQuery('');
+              searchExploreRecipes({ cuisine: 'All', query: '' });
+            }}
+          />
+        </View>
+      );
+    }
+    return null;
+  }, [isExploreLoading, exploreRecipes.length, exploreError, setSelectedCuisine, setSearchQuery, searchExploreRecipes]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
+      <FlatList
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.pretitle}>Culinary Exploration</Text>
-          <Text style={styles.title}>Explore Recipes</Text>
-        </View>
-
-        {/* Search */}
-        <RecipeSearch onSearch={handleSearch} showSuggestions={false} />
-
-        {/* Curated Rails Horizon */}
-        <View style={styles.filterSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.pillsList}
-          >
-            {CURATED_RAILS.map((rail) => {
-              const isSelected = activeCuratedRail === rail.label;
-              return (
-                <Pressable
-                  key={rail.label}
-                  style={[styles.railPill, isSelected && styles.railPillSelected]}
-                  onPress={() => handleCuratedRailSelect(rail)}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Curated rail ${rail.label}`}
-                >
-                  <Text
-                    style={[
-                      styles.railPillText,
-                      isSelected && styles.railPillTextSelected,
-                    ]}
-                  >
-                    {rail.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Cuisines Filter */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Cuisines</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.pillsList}
-          >
-            {CUISINES.map((c) => {
-              const isSelected = selectedCuisine === c;
-              return (
-                <Pressable
-                  key={c}
-                  style={[styles.filterPill, isSelected && styles.filterPillSelected]}
-                  onPress={() => handleCuisineSelect(c)}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Filter cuisine ${c}`}
-                >
-                  <Text
-                    style={[
-                      styles.filterPillText,
-                      isSelected && styles.filterPillTextSelected,
-                    ]}
-                  >
-                    {c}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Dietary Filters */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Diet & Lifestyle</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.pillsList}
-          >
-            {DIETARY_FILTERS.map((d) => {
-              const isSelected = selectedDietary.includes(d);
-              return (
-                <Pressable
-                  key={d}
-                  style={[
-                    styles.dietPill,
-                    isSelected && styles.dietPillSelected,
-                  ]}
-                  onPress={() => {
-                    toggleDietary(d);
-                  }}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Filter dietary ${d}`}
-                >
-                  <Text
-                    style={[
-                      styles.dietPillText,
-                      isSelected && styles.dietPillTextSelected,
-                    ]}
-                  >
-                    {d}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Results Header */}
-        <View style={styles.resultsHeader}>
-          <Text style={styles.resultsTitle}>
-            {isExploreLoading
-              ? 'Finding recipes...'
-              : `${exploreRecipes.length} recipes found`}
-          </Text>
-
-          <Pressable
-            style={styles.refreshBtn}
-            onPress={() => searchExploreRecipes()}
-            disabled={isExploreLoading}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel="Refresh explore recipes"
-          >
-            <RefreshCw
-              size={14}
-              color={COLORS.primary}
-              style={isExploreLoading ? { opacity: 0.5 } : {}}
-            />
-            <Text style={styles.refreshBtnText}>Refresh</Text>
-          </Pressable>
-        </View>
-
-        {/* Error State */}
-        {exploreError ? (
-          <View style={styles.paddedContainer}>
-            <ErrorState
-              message={exploreError}
-              onRetry={() => searchExploreRecipes()}
-            />
-          </View>
-        ) : null}
-
-        {/* Loading Skeletons */}
-        {isExploreLoading && exploreRecipes.length === 0 ? (
-          <View style={styles.paddedContainer}>
-            <RecipeCardSkeleton />
-            <RecipeCardSkeleton />
-          </View>
-        ) : null}
-
-        {/* Recipes Feed */}
-        {!isExploreLoading && exploreRecipes.length === 0 && !exploreError ? (
-          <View style={styles.paddedContainer}>
-            <EmptyState
-              title="No recipes match this search"
-              description="Try adjusting your filters or search for another delicious dish."
-              actionLabel="Reset Filters"
-              onAction={() => {
-                setSelectedCuisine('All');
-                setSearchQuery('');
-                searchExploreRecipes({ cuisine: 'All', query: '' });
-              }}
-            />
-          </View>
-        ) : (
-          <View style={styles.recipesList}>
-            {exploreRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+        data={exploreRecipes}
+        renderItem={renderRecipeItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={renderListEmpty}
+        ListFooterComponent={<View style={{ height: SPACING.xl }} />}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        updateCellsBatchingPeriod={50}
+      />
     </SafeAreaView>
   );
 }
@@ -407,11 +446,21 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: TYPOGRAPHY.weights.semibold,
   },
+  headerStack: {
+    gap: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
   paddedContainer: {
     paddingHorizontal: SPACING.md,
   },
   recipesList: {
     paddingHorizontal: SPACING.md,
     gap: SPACING.xs,
+  },
+  recipeCardWrapper: {
+    paddingHorizontal: SPACING.md,
+    width: '100%',
+    maxWidth: 1240,
+    alignSelf: 'center',
   },
 });

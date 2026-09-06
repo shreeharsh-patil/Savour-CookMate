@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  FlatList,
   StyleSheet,
   Pressable,
   TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,6 +26,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { RecipeCard } from '../../components/RecipeCard';
 import { EmptyState } from '../../components/EmptyState';
 import { COLORS, RADIUS, SPACING, TYPOGRAPHY } from '../../constants/theme';
+import { Recipe } from '../../types';
 
 const DEFAULT_COLLECTIONS = [
   'All Saved',
@@ -90,131 +93,166 @@ export default function SavedScreen() {
 
   const allCollections = [...DEFAULT_COLLECTIONS, ...customCollections];
 
+  const renderRecipeItem = useCallback(
+    ({ item }: { item: Recipe }) => (
+      <View style={styles.recipeCardWrapper}>
+        <RecipeCard recipe={item} />
+      </View>
+    ),
+    []
+  );
+
+  const keyExtractor = useCallback((item: Recipe) => item.id, []);
+
+  const renderListHeader = useCallback(() => (
+    <View style={styles.headerStack}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.pretitle}>Cookbook & Collections</Text>
+        <Text style={styles.title}>Saved Recipes</Text>
+      </View>
+
+      {/* Filter Input */}
+      {savedRecipes.length > 0 && (
+        <View style={styles.searchBar}>
+          <Search size={16} color={COLORS.textMuted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Search your saved cookbook..."
+            placeholderTextColor={COLORS.textLight}
+            value={filterText}
+            onChangeText={setFilterText}
+          />
+        </View>
+      )}
+
+      {/* Collections Strip */}
+      <View style={styles.collectionsSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.collectionsList}
+        >
+          {allCollections.map((col) => {
+            const isSelected = activeCollection === col;
+            return (
+              <Pressable
+                key={col}
+                style={[
+                  styles.collectionPill,
+                  isSelected && styles.collectionPillSelected,
+                ]}
+                onPress={() => setActiveCollection(col)}
+              >
+                <Folder
+                  size={13}
+                  color={isSelected ? COLORS.textInverted : COLORS.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.collectionPillText,
+                    isSelected && styles.collectionPillTextSelected,
+                  ]}
+                >
+                  {col}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          {/* Add Collection Button */}
+          {!isAddingCollection ? (
+            <Pressable
+              style={styles.addCollectionBtn}
+              onPress={() => setIsAddingCollection(true)}
+            >
+              <Plus size={13} color={COLORS.primary} />
+              <Text style={styles.addCollectionBtnText}>New</Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+
+        {isAddingCollection && (
+          <View style={styles.newCollectionRow}>
+            <TextInput
+              style={styles.newCollectionInput}
+              placeholder="Collection name (e.g. Sunday Brunch)..."
+              placeholderTextColor={COLORS.textLight}
+              value={newCollectionName}
+              onChangeText={setNewCollectionName}
+              onSubmitEditing={handleAddCollection}
+              returnKeyType="done"
+              autoFocus
+            />
+            <Pressable
+              style={styles.confirmAddBtn}
+              onPress={handleAddCollection}
+            >
+              <Text style={styles.confirmAddBtnText}>Save</Text>
+            </Pressable>
+            <Pressable
+              style={styles.cancelAddBtn}
+              onPress={() => setIsAddingCollection(false)}
+            >
+              <Text style={styles.cancelAddBtnText}>Cancel</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+    </View>
+  ), [
+    savedRecipes.length,
+    filterText,
+    allCollections,
+    activeCollection,
+    isAddingCollection,
+    newCollectionName,
+    handleAddCollection,
+  ]);
+
+  const renderListEmpty = useCallback(() => {
+    if (savedRecipes.length === 0) {
+      return (
+        <EmptyState
+          icon={<Bookmark size={26} color={COLORS.primary} />}
+          title="Your cookbook is empty"
+          description="Explore recipes and tap the bookmark icon to save your favorite dishes."
+          actionLabel="Discover Recipes"
+          onAction={() => router.push('/(tabs)')}
+        />
+      );
+    }
+    if (filteredRecipes.length === 0) {
+      return (
+        <EmptyState
+          title="No recipes in this collection"
+          description={`No saved recipes match "${activeCollection}".`}
+          actionLabel="View All Saved"
+          onAction={() => setActiveCollection('All Saved')}
+        />
+      );
+    }
+    return null;
+  }, [savedRecipes.length, filteredRecipes.length, activeCollection, router]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
+      <FlatList
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.pretitle}>Cookbook & Collections</Text>
-          <Text style={styles.title}>Saved Recipes</Text>
-        </View>
-
-        {/* Filter Input */}
-        {savedRecipes.length > 0 && (
-          <View style={styles.searchBar}>
-            <Search size={16} color={COLORS.textMuted} style={styles.searchIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Search your saved cookbook..."
-              placeholderTextColor={COLORS.textLight}
-              value={filterText}
-              onChangeText={setFilterText}
-            />
-          </View>
-        )}
-
-        {/* Collections Strip */}
-        <View style={styles.collectionsSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.collectionsList}
-          >
-            {allCollections.map((col) => {
-              const isSelected = activeCollection === col;
-              return (
-                <Pressable
-                  key={col}
-                  style={[
-                    styles.collectionPill,
-                    isSelected && styles.collectionPillSelected,
-                  ]}
-                  onPress={() => setActiveCollection(col)}
-                >
-                  <Folder
-                    size={13}
-                    color={isSelected ? COLORS.textInverted : COLORS.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.collectionPillText,
-                      isSelected && styles.collectionPillTextSelected,
-                    ]}
-                  >
-                    {col}
-                  </Text>
-                </Pressable>
-              );
-            })}
-
-            {/* Add Collection Button */}
-            {!isAddingCollection ? (
-              <Pressable
-                style={styles.addCollectionBtn}
-                onPress={() => setIsAddingCollection(true)}
-              >
-                <Plus size={13} color={COLORS.primary} />
-                <Text style={styles.addCollectionBtnText}>New</Text>
-              </Pressable>
-            ) : null}
-          </ScrollView>
-
-          {isAddingCollection && (
-            <View style={styles.newCollectionRow}>
-              <TextInput
-                style={styles.newCollectionInput}
-                placeholder="Collection name (e.g. Sunday Brunch)..."
-                placeholderTextColor={COLORS.textLight}
-                value={newCollectionName}
-                onChangeText={setNewCollectionName}
-                onSubmitEditing={handleAddCollection}
-                returnKeyType="done"
-                autoFocus
-              />
-              <Pressable
-                style={styles.confirmAddBtn}
-                onPress={handleAddCollection}
-              >
-                <Text style={styles.confirmAddBtnText}>Save</Text>
-              </Pressable>
-              <Pressable
-                style={styles.cancelAddBtn}
-                onPress={() => setIsAddingCollection(false)}
-              >
-                <Text style={styles.cancelAddBtnText}>Cancel</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-
-        {/* Recipes Content */}
-        {savedRecipes.length === 0 ? (
-          <EmptyState
-            icon={<Bookmark size={26} color={COLORS.primary} />}
-            title="Your cookbook is empty"
-            description="Explore recipes and tap the bookmark icon to save your favorite dishes."
-            actionLabel="Discover Recipes"
-            onAction={() => router.push('/(tabs)')}
-          />
-        ) : filteredRecipes.length === 0 ? (
-          <EmptyState
-            title="No recipes in this collection"
-            description={`No saved recipes match "${activeCollection}".`}
-            actionLabel="View All Saved"
-            onAction={() => setActiveCollection('All Saved')}
-          />
-        ) : (
-          <View style={styles.recipesList}>
-            {filteredRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+        data={filteredRecipes}
+        renderItem={renderRecipeItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={renderListEmpty}
+        ListFooterComponent={<View style={{ height: SPACING.xl }} />}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        updateCellsBatchingPeriod={50}
+      />
     </SafeAreaView>
   );
 }
@@ -350,7 +388,15 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 11,
   },
+  headerStack: {
+    gap: SPACING.md,
+  },
   recipesList: {
     gap: SPACING.xs,
+  },
+  recipeCardWrapper: {
+    width: '100%',
+    maxWidth: 1240,
+    alignSelf: 'center',
   },
 });
