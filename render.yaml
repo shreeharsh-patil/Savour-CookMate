@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: yummy-tummy-backend
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: node backend/dist/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+
