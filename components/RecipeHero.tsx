@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { Clock, Flame, Users, Bookmark, Share2 } from 'lucide-react-native';
 import { Recipe } from '../types';
@@ -9,21 +9,25 @@ import { useAppStore } from '../store/useAppStore';
 
 interface RecipeHeroProps { recipe: Recipe; onWatchVideo?: () => void; onShare?: () => void; }
 
-export const RecipeHero: React.FC<RecipeHeroProps> = ({ recipe, onWatchVideo, onShare }) => {
+export const RecipeHero: React.FC<RecipeHeroProps> = React.memo(({ recipe, onWatchVideo, onShare }) => {
   const { width } = useWindowDimensions();
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
-  const isSaved = recipe.isSaved;
+  const isSaved = useAppStore((state) => Boolean(state.savedRecipeIds[recipe.id])) || Boolean(recipe.isSaved);
   const isCompact = width <= 768;
   const diet = recipe.diet === 'Vegetarian' || recipe.diet === 'Vegan' ? recipe.diet : null;
 
+  const handleToggleSave = useCallback(() => {
+    toggleSaveRecipe(recipe);
+  }, [toggleSaveRecipe, recipe]);
+
   return <View style={[styles.container, !isCompact && styles.containerDesktop]}>
     <View style={[styles.imageWrapper, !isCompact && styles.imageWrapperDesktop]}>
-      <FoodImage source={{ uri: recipe.imageUrl || '' }} style={styles.heroImage} />
+      <FoodImage source={{ uri: recipe.imageUrl || '' }} style={styles.heroImage} priority="high" />
       <View style={styles.topBar}>
         <View style={styles.cuisineTag}><Text style={styles.cuisineText}>{recipe.cuisine}</Text></View>
         <View style={styles.topRightActions}>
           {onShare ? <Pressable style={styles.iconButton} onPress={onShare} hitSlop={8} accessibilityLabel="Share recipe"><Share2 size={17} color={COLORS.textPrimary} /></Pressable> : null}
-          <Pressable style={styles.iconButton} onPress={() => toggleSaveRecipe(recipe)} hitSlop={8} accessibilityLabel={isSaved ? 'Remove from saved recipes' : 'Save recipe'}>
+          <Pressable style={styles.iconButton} onPress={handleToggleSave} hitSlop={8} accessibilityLabel={isSaved ? 'Remove from saved recipes' : 'Save recipe'}>
             <Bookmark size={17} color={isSaved ? COLORS.primary : COLORS.textPrimary} fill={isSaved ? COLORS.primary : 'transparent'} />
           </Pressable>
         </View>
@@ -47,7 +51,7 @@ export const RecipeHero: React.FC<RecipeHeroProps> = ({ recipe, onWatchVideo, on
       {onWatchVideo ? <Pressable style={styles.watchVideoBtn} onPress={onWatchVideo}><Text style={styles.watchVideoText}>View Recipe & Videos</Text></Pressable> : null}
     </View>
   </View>;
-};
+});
 
 const styles = StyleSheet.create({
   container: { marginHorizontal: SPACING.md, marginBottom: SPACING.lg }, containerDesktop: { marginHorizontal: SPACING.lg },

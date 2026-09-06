@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, View, Text, ImageStyle, StyleProp } from 'react-native';
+import { StyleSheet, View, Text, ImageStyle, StyleProp, Platform } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { UtensilsCrossed } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
@@ -28,25 +28,27 @@ export const FoodImage: React.FC<FoodImageProps> = React.memo(({
   const sourceUri = typeof source === 'object' ? source?.uri : String(source);
   const thumbUri = thumbnailSource?.uri;
 
-  // Reset error state only when source URL changes
+  // Reset error state only when source URL changes and if error was set
   useEffect(() => {
-    setHasError(false);
+    if (hasError) {
+      setHasError(false);
+    }
   }, [sourceUri]);
 
   const resolvedUri = hasError ? thumbUri : sourceUri;
 
   return (
-    <View style={[styles.container, { borderRadius }, style]}>
+    <View style={[styles.container, borderRadius ? { borderRadius } : null, style]}>
       {resolvedUri && resolvedUri.trim() !== '' ? (
         <ExpoImage
           source={{ uri: resolvedUri }}
           placeholder={{ blurhash: FOOD_BLURHASH }}
           contentFit={contentFit}
-          transition={100}
+          transition={Platform.OS === 'web' ? 0 : 50}
           cachePolicy="memory-disk"
           priority={priority}
           recyclingKey={resolvedUri}
-          style={[styles.image, { borderRadius }]}
+          style={[styles.image, borderRadius ? { borderRadius } : null]}
           onError={() => {
             if (!hasError && thumbUri) {
               setHasError(true);
@@ -54,7 +56,7 @@ export const FoodImage: React.FC<FoodImageProps> = React.memo(({
           }}
         />
       ) : (
-        <View style={[styles.missingContainer, { borderRadius }]}>
+        <View style={[styles.missingContainer, borderRadius ? { borderRadius } : null]}>
           <UtensilsCrossed size={22} color={COLORS.textMuted} />
           <Text style={styles.missingText}>No image available</Text>
         </View>

@@ -17,7 +17,7 @@ interface FoodCategoryRailProps {
   onResetCategory?: () => void;
 }
 
-export const FoodCategoryRail: React.FC<FoodCategoryRailProps> = ({
+export const FoodCategoryRail: React.FC<FoodCategoryRailProps> = React.memo(({
   selectedCategory,
   onSelectCategory,
   onResetCategory,
@@ -88,7 +88,7 @@ export const FoodCategoryRail: React.FC<FoodCategoryRailProps> = ({
       </ScrollView>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

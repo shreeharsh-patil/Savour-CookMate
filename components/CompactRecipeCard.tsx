@@ -22,13 +22,18 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = React.memo(({
   const toggleSaveRecipe = useAppStore((state) => state.toggleSaveRecipe);
   const isSaved = useAppStore((state) => Boolean(state.savedRecipeIds[recipe.id])) || Boolean(recipe.isSaved);
 
-  const handlePress = () => {
+  const handlePress = React.useCallback(() => {
     if (onPress) {
       onPress();
     } else {
       setSelectedRecipe(recipe);
     }
-  };
+  }, [onPress, setSelectedRecipe, recipe]);
+
+  const handleToggleSave = React.useCallback((e: any) => {
+    e?.stopPropagation?.();
+    toggleSaveRecipe(recipe);
+  }, [toggleSaveRecipe, recipe]);
 
   const isVeg = recipe.diet === 'Vegetarian' || recipe.diet === 'Vegan';
 
@@ -58,10 +63,7 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = React.memo(({
         {/* Top-Right: Bookmark/Save Button */}
         <Pressable
           style={styles.bookmarkButton}
-          onPress={(e) => {
-            e?.stopPropagation?.();
-            toggleSaveRecipe(recipe);
-          }}
+          onPress={handleToggleSave}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           accessibilityRole="button"
           accessibilityLabel={isSaved ? "Remove from saved recipes" : "Save recipe"}
