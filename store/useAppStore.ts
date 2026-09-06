@@ -484,6 +484,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   loadHomeRecipes: async (category?: string, refresh?: boolean, options?: any) => {
+    if (get().isHomeLoading && !refresh) return;
     set({ isHomeLoading: true, homeError: null });
     try {
       const filterCategory = category || get().activeHomeCategory;
